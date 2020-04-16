@@ -1,0 +1,55 @@
+vehicle_name: airsim_drone
+state_refresh_rate: 100
+ 
+sensors:
+  Scene_cam:
+    sensor_type: Camera
+    image_type: Scene
+    rate: 3
+    CaptureSettings:   
+        ImageType: 0
+        Width: 256
+        Height: 144
+        FOV_Degrees: 90
+        AutoExposureSpeed: 100
+        AutoExposureBias: 0
+        AutoExposureMaxBrightness: 0.64
+        AutoExposureMinBrightness: 0.03
+        MotionBlurAmount: 0
+        TargetGamma: 1.0
+        ProjectionMode: ""
+        OrthoWidth: 5.12
+      
+  Depth_cam:
+    sensor_type: Camera
+    image_type: DepthPlanner
+    rate: 3
+    pixels_as_float: true
+   
+  Seg_cam:
+    sensor_type: Camera
+    image_type: Segmentation
+    rate: 3
+   
+  Lidar:
+    sensor_type: Lidar
+    rate: 3
+#    T_B_S: # 30 pitch
+#      - [  0.8660254,  0.0000000,  0.5000000, 0]
+#      - [0.0000000,  1.0000000,  0.0000000, 0]
+#      - [-0.5000000,  0.0000000,  0.8660254,0 ]
+#      - [0, 0, 0, 1]
+#    T_B_S:
+#      - [1,0,0,0]
+#      - [0,1,0,0]
+#      - [0,0,1,0]
+#      - [1,0,0,3]
+    T_B_S:  # Transformation body to sensor in body-frame (30pitch, 30 roll)
+      - [  0.8660254,  0.2500000,  0.433012, 0]
+      - [-0.0000000,  0.8660254, -0.5000000, 0]
+      - [-0.5000000,  0.4330127,  0.7500000, 0]
+      - [0, 0, 0, 1]
+
+  Imu:
+    sensor_type: Imu
+    rate: 100
