@@ -1,7 +1,7 @@
 <launch>
   <!-- Arguments -->
   <arg name="target_file_path" default=""/> <!-- Defaults to ~/Documents/AirSim/settings.json -->
-  <arg name="config_file_path" default="$(find unreal_airsim)/cfg/airsim_simulation.yaml"/>
+  <arg name="config_file_path" default="$(find unreal_airsim)/cfg/demo.yaml"/>
 
   
 

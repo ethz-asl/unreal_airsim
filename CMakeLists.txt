@@ -38,9 +38,6 @@ cs_add_library(${PROJECT_NAME}
         src/frame_transformations.cpp
         src/online_simulator/simulator.cpp
         src/online_simulator/sensor_timer.cpp
-
-        src/simulator_processing/processor_factory.cpp
-        src/simulator_processing/depthimag_to_pointcloud.cpp
         )
 
 ###############
