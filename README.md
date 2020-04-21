@@ -76,6 +76,10 @@ roslaunch unreal_airsim demo.launch
 ```
 to start the simulation and display the sensor readings in RVIZ.
 
+![u_airsim_4](https://user-images.githubusercontent.com/36043993/79876617-90e98e00-83eb-11ea-8edb-f11156a716d1.png)
+
+External view of the UE4 game (left), camera image (center) and lidar readings (right) obtained from the simulator.
+
 # Troubleshooting
 
 ## Installation
