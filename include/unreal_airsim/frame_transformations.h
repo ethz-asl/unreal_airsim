@@ -22,6 +22,7 @@ class FrameConverter {
   FrameConverter();
   virtual ~FrameConverter() = default;
 
+  // setup
   void reset();
   void setupFromYaw(double yaw);  // rad
   void setupFromQuat(const Eigen::Quaterniond &quat);
@@ -35,12 +36,21 @@ class FrameConverter {
   void airsimToRos(geometry_msgs::Pose* pose) const;
   void airsimToRos(geometry_msgs::Transform * pose) const;
 
+  void rosToAirsim(Eigen::Vector3d* point) const;
+  void rosToAirsim(geometry_msgs::Point* point) const;
+  void rosToAirsim(Eigen::Quaterniond *point) const;
+  void rosToAirsim(geometry_msgs::Quaternion* orientation) const;
+  void rosToAirsim(geometry_msgs::Pose* pose) const;
+
   // transformations
   void transfrormPointAirsimToRos(double* x, double* y, double* z) const;
-  void transfrormOrientationAirsimToRos(double* x, double* y, double* z, double* w) const;
+  void transfrormOrientationAirsimToRos(double* w, double* x, double* y, double* z) const;
+  void transfrormPointRosToAirsim(double* x, double* y, double* z) const;
+  void transfrormOrientationRosToAirsim(double* w, double* x, double* y, double* z) const;
 
  protected:
   Eigen::Matrix3d rotation_;
+  Eigen::Matrix3d rot_inverse_;
 };
 
 } // namespcae unreal_airsim
