@@ -205,6 +205,7 @@ bool AirsimSimulator::setupAirsim() {
 }
 
 bool AirsimSimulator::setupROS() {
+  // General
   // Publish state (timestamps??)
   sim_state_timer_ = nh_.createTimer(ros::Duration(1.0 / config_.state_refresh_rate),
                                      &AirsimSimulator::simStateCallback, this);
@@ -212,6 +213,9 @@ bool AirsimSimulator::setupROS() {
   pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>(config_.vehicle_name + "/ground_truth/pose", 5);
   collision_pub_ = nh_.advertise<std_msgs::Bool>(config_.vehicle_name + "/collision", 1);
   sim_is_ready_pub_ = nh_.advertise<std_msgs::Bool>("simulation_is_ready", 1);
+
+  // control interfaces
+  command_pose_sub_ = nh_.subscribe(config_.vehicle_name + "/command/pose", 5, &AirsimSimulator::commandPoseCallback, this);
 
   // sensors
   for (auto const &sensor: config_.sensors) {
@@ -274,59 +278,16 @@ bool AirsimSimulator::initializeSimulationFrame() {
   return true;
 }
 
-bool AirsimSimulator::readTransformFromRos(const std::string &topic,
-                                           Eigen::Vector3d *translation,
-                                           Eigen::Quaterniond *rotation) {
-  // This is implemented separately to catch all exceptions when parsing xmlrpc
-  // defaults: Unit transformation
-  *translation = Eigen::Vector3d();
-  *rotation = Eigen::Quaterniond(1, 0, 0, 0);
-  if (!nh_private_.hasParam(topic)) {
-    return false;
-  }
-  XmlRpc::XmlRpcValue matrix;
-  nh_private_.getParam(topic, matrix);
-  if (matrix.getType() != XmlRpc::XmlRpcValue::TypeArray) {
-    LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
-    return false;
-  } else if (matrix.size() != 4) {
-    LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
-    return false;
-  }
-  Eigen::Matrix3d rot_mat;
-  Eigen::Vector3d trans;
-  double val;
-  for (size_t i = 0; i < 3; ++i) {
-    XmlRpc::XmlRpcValue row = matrix[i];
-    if (row.getType() != XmlRpc::XmlRpcValue::TypeArray) {
-      LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
-      return false;
-    } else if (row.size() != 4) {
-      LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
-      return false;
-    }
-    for (size_t j = 0; j < 4; ++j) {
-      try {
-        val = row[j];
-      } catch (...) {
-        try {
-          int ival = row[j];
-          val = (double)ival;
-        } catch (...) {
-          LOG(WARNING) << "Unable to convert all entries of transformation '" << topic << "' to double.";
-          return false;
-        }
-      }
-      if (j < 3) {
-        rot_mat(i, j) = val;
-      } else {
-        trans[i] = val;
-      }
-    }
-  }
-  *translation = trans;
-  *rotation = rot_mat;
-  return true;
+void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose& msg){
+  if (!is_running_) { return; }
+  // Input pose is in simulator (odom) frame, use position + yaw as setpoint
+  auto pos = Eigen::Vector3d(msg.position.x, msg.position.y, msg.position.z);
+  auto ori = Eigen::Quaterniond(msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z);
+  Eigen::Vector3d euler = ori.toRotationMatrix().eulerAngles(2, 1, 0); // ZYX
+  auto yaw_mode = msr::airlib::YawMode(false, -euler[0] / M_PI * 180.0);
+  frame_converter_.rosToAirsim(&pos);
+  airsim_move_client_.moveToPositionAsync(pos.x(), pos.y(), pos.z(), config_.velocity, 3600,
+      config_.drive_train_type, yaw_mode, -1, 1, config_.vehicle_name);
 }
 
 void AirsimSimulator::startupCallback(const ros::TimerEvent &) {
@@ -423,6 +384,61 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent &) {
     msg.data = true;
     collision_pub_.publish(msg);
   }
+}
+
+bool AirsimSimulator::readTransformFromRos(const std::string &topic,
+                                           Eigen::Vector3d *translation,
+                                           Eigen::Quaterniond *rotation) {
+  // This is implemented separately to catch all exceptions when parsing xmlrpc
+  // defaults: Unit transformation
+  *translation = Eigen::Vector3d();
+  *rotation = Eigen::Quaterniond(1, 0, 0, 0);
+  if (!nh_private_.hasParam(topic)) {
+    return false;
+  }
+  XmlRpc::XmlRpcValue matrix;
+  nh_private_.getParam(topic, matrix);
+  if (matrix.getType() != XmlRpc::XmlRpcValue::TypeArray) {
+    LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
+    return false;
+  } else if (matrix.size() != 4) {
+    LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
+    return false;
+  }
+  Eigen::Matrix3d rot_mat;
+  Eigen::Vector3d trans;
+  double val;
+  for (size_t i = 0; i < 3; ++i) {
+    XmlRpc::XmlRpcValue row = matrix[i];
+    if (row.getType() != XmlRpc::XmlRpcValue::TypeArray) {
+      LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
+      return false;
+    } else if (row.size() != 4) {
+      LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
+      return false;
+    }
+    for (size_t j = 0; j < 4; ++j) {
+      try {
+        val = row[j];
+      } catch (...) {
+        try {
+          int ival = row[j];
+          val = (double)ival;
+        } catch (...) {
+          LOG(WARNING) << "Unable to convert all entries of transformation '" << topic << "' to double.";
+          return false;
+        }
+      }
+      if (j < 3) {
+        rot_mat(i, j) = val;
+      } else {
+        trans[i] = val;
+      }
+    }
+  }
+  *translation = trans;
+  *rotation = rot_mat;
+  return true;
 }
 
 void AirsimSimulator::onShutdown() {
