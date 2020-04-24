@@ -58,7 +58,6 @@ class AirsimSimulator {
       msr::airlib::ImageCaptureBase::ImageType image_type = msr::airlib::ImageCaptureBase::ImageType::Scene;
     };
     std::vector<std::unique_ptr<Sensor>> sensors;
-    Sensor* sensor_to_add = nullptr;  // this is read when passed to a sensor timer
   };
 
   AirsimSimulator(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private);

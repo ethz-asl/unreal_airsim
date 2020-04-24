@@ -32,7 +32,7 @@ class SensorTimer {
   double getRate() const;
   bool isPrivate() const;
   void signalShutdown();
-  void addSensor(const AirsimSimulator *simulator);
+  void addSensor(const AirsimSimulator &simulator, int sensor_index);
 
  protected:
   // general

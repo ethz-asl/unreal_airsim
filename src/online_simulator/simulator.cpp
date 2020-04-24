@@ -218,12 +218,12 @@ bool AirsimSimulator::setupROS() {
   command_pose_sub_ = nh_.subscribe(config_.vehicle_name + "/command/pose", 5, &AirsimSimulator::commandPoseCallback, this);
 
   // sensors
-  for (auto const &sensor: config_.sensors) {
+  for (size_t i=0; i<config_.sensors.size(); ++i) {
     // Find or allocate the sensor timer
     SensorTimer *timer = nullptr;
-    if (!sensor->force_separate_timer) {
+    if (!config_.sensors[i]->force_separate_timer) {
       for (const auto &t : sensor_timers_) {
-        if (!t->isPrivate() && t->getRate() == sensor->rate) {
+        if (!t->isPrivate() && t->getRate() == config_.sensors[i]->rate) {
           timer = t.get();
           break;
         }
@@ -231,27 +231,26 @@ bool AirsimSimulator::setupROS() {
     }
     if (timer == nullptr) {
       sensor_timers_.push_back(std::make_unique<SensorTimer>(nh_,
-                                                             sensor->rate,
-                                                             sensor->force_separate_timer,
+                                                             config_.sensors[i]->rate,
+                                                             config_.sensors[i]->force_separate_timer,
                                                              config_.vehicle_name,
                                                              frame_converter_));
       timer = sensor_timers_.back().get();
     }
-    config_.sensor_to_add = sensor.get();
-    timer->addSensor(this);
+    timer->addSensor(this, i);
     // Sensor transform broadcast
     geometry_msgs::TransformStamped static_transformStamped;
-    Eigen::Quaterniond rotation = sensor->rotation;
-    if (sensor->sensor_type == Config::Sensor::TYPE_CAMERA){
+    Eigen::Quaterniond rotation = config_.sensors[i]->rotation;
+    if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA){
       // Camera frames are x right, y down, z depth
       rotation = Eigen::Quaterniond(0.5,-0.5, 0.5, -0.5) * rotation;
     }
     static_transformStamped.header.stamp = ros::Time::now();
     static_transformStamped.header.frame_id = config_.vehicle_name;
-    static_transformStamped.child_frame_id = sensor->frame_name;
-    static_transformStamped.transform.translation.x = sensor->translation.x();
-    static_transformStamped.transform.translation.y =  sensor->translation.y();
-    static_transformStamped.transform.translation.z = sensor->translation.z();
+    static_transformStamped.child_frame_id = config_.sensors[i]->frame_name;
+    static_transformStamped.transform.translation.x = config_.sensors[i]->translation.x();
+    static_transformStamped.transform.translation.y =  config_.sensors[i]->translation.y();
+    static_transformStamped.transform.translation.z = config_.sensors[i]->translation.z();
     static_transformStamped.transform.rotation.x =  rotation.x();
     static_transformStamped.transform.rotation.y = rotation.y();
     static_transformStamped.transform.rotation.z = rotation.z();
