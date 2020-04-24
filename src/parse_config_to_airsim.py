@@ -209,7 +209,7 @@ class ConfigParser:
             dict_out["Z"] = -list_in[2][3]
             R = [x[:3] for x in list_in[:3]]
             R = Rotation.from_dcm(R)
-            euler = R.as_euler('xyz', degrees=True)
+            euler = R.as_euler('xyz', degrees=True)   # Airsim is really inconsistent here with rotation parametrization
             dict_out["Roll"] = round(euler[0], 3)
             dict_out["Pitch"] = round(-euler[1], 3)
             dict_out["Yaw"] = round(-euler[2], 3)

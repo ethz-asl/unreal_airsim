@@ -1,9 +1,13 @@
 #include "unreal_airsim/online_simulator/sensor_timer.h"
+#include "unreal_airsim/online_simulator/simulator.h"
 
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Imu.h>
+
+#include <glog/logging.h>
+
 
 namespace unreal_airsim {
 
@@ -38,7 +42,12 @@ void SensorTimer::timerCallback(const ros::TimerEvent &) {
   processImus();
 }
 
-void SensorTimer::addSensor(const AirsimSimulator::Config::Sensor *sensor) {
+void SensorTimer::addSensor(const AirsimSimulator *simulator) {
+  AirsimSimulator::Config::Sensor* sensor = simulator->getConfig().sensor_to_add;
+  if (!sensor){
+    LOG(WARNING) << "Could not add sensor to SensorTimer: 'sensor_to_add' was nullptr.";
+    return;
+  }
   if (sensor->sensor_type == AirsimSimulator::Config::Sensor::TYPE_CAMERA) {
     auto camera = (AirsimSimulator::Config::Camera *) sensor;
     camera_pubs_.push_back(nh_.advertise<sensor_msgs::Image>(camera->output_topic, 5));

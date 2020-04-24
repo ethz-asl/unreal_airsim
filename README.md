@@ -25,7 +25,7 @@ If you plan to use *only* pre-compiled binaries as simulation worlds, this secti
 Install *our fork* of AirSim, the UE4 Plugin:
 ```shell script
 cd </where/to/install>
-git clone https://github.com/ethz-asl/AirSim.git
+git clone git@github.com/ethz-asl/AirSim.git
 cd Airsim
 ./setup.sh 
 ./build.sh
@@ -35,30 +35,39 @@ cd Airsim
 
 Install unreal_airsim, containing the simulation ROS-package and tools.
 
-If you haven't installed ROS and setup a catkin workspace:
-```shell script
-#TODO: look at another repo how to set it up. This was developed and tested on Ubuntu 18.04 with ROS melodic-desktop-full.
-```
+* If you haven't already installed ROS, please install it according to their instructions. 
+This repo was developed on a desktop-full version of [ROS melodic](http://wiki.ros.org/melodic/Installation/Ubuntu/).
 
-Dependencies:
+* System dependencies:
+    ```shell script
+    sudo apt-get install python-wstool python-catkin-tools ros-melodic-cmake-modules
+    ```
+ 
+* If you haven't already set up a caktin worskpace:
+    ```shell script
+    mkdir -p ~/catkin_ws/src
+    cd ~/catkin_ws
+    catkin init
+    catkin config --extend /opt/ros/melodic
+    catkin config --cmake-args -DCMAKE_BUILD_TYPE=Release
+    catkin config --merge-devel
+    ```
 
-No special system dependencies required at the moment.
-```shell script
-#sudo apt-get install TODO-Doublecheck
-#pip install TODO2
-```
+* Install via [SSH](https://help.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh):
+    ```shell script
+    cd ~/catkin_ws/src
+    git clone git@github.com:ethz-asl/unreal_airsim.git
+    wstool init . ./unreal_airsim/unreal_airsim_ssh.rosinstall
+    wstool update
+    ```
+* In `CMakeLists.txt`, change the airsim root path in line 7 to the directory where you installed airsim `set(AIRSIM_ROOT /where/to/install/AirSim)`.
 
-Install:
-```shell script
-cd ~/catkin_ws/src
-git clone https://github.com/ethz-asl/unreal_airsim.git
-cd unreal_airsim
-```
-In `CMakeLists.txt`, change the airsim root path in line 7 to your install directory `set(AIRSIM_ROOT /where/to/install/AirSim)`.
-```shell script
-catkin build --this
-source ../../devel/setup.bash
-```
+* Build:
+    ```shell script
+    catkin build unreal_airsim
+    source ../devel/setup.bash
+    ```
+
 # Examples
 This demo briefly walks through the steps on how to use the online_simulator.
 The simulation is setup from a single configuration file, a minimal example is given in `cfg/demo.yaml`.

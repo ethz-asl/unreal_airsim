@@ -1,7 +1,8 @@
 #ifndef UNREAL_AIRSIM_ONLINE_SIMULATOR_SIMULATOR_H_
 #define UNREAL_AIRSIM_ONLINE_SIMULATOR_SIMULATOR_H_
 
-#include "unreal_airsim/frame_transformations.h"
+#include "unreal_airsim/frame_converter.h"
+#include "unreal_airsim/online_simulator/sensor_timer.h"
 
 // ROS
 #include <ros/ros.h>
@@ -33,7 +34,8 @@ class AirsimSimulator {
 
     // vehicle (the multirotor)
     std::string vehicle_name = "airsim_drone";  // Currently assumes a single drone, multi-vehicle sim could be setup
-    double velocity = 1.0;  // m/s
+    double velocity = 1.0;  // m/s, for high level movement commands
+    msr::airlib::DrivetrainType drive_train_type = msr::airlib::DrivetrainType::MaxDegreeOfFreedom; // this is currently fixed
 
     // sensors
     struct Sensor{
@@ -46,7 +48,7 @@ class AirsimSimulator {
       std::string frame_name;     // defaults to vehicle_name_sensor_name
       double rate = 10.0;    // Hz
       bool force_separate_timer = false;    // By default all sensors of identical rate are synced into 1 timer,
-                                            // but that can slow down overall performance
+                                            // but that can slow down overall performance for a specific sensor
       Eigen::Vector3d translation;    // T_B_S, default is unit transform
       Eigen::Quaterniond rotation;
     };
@@ -56,16 +58,26 @@ class AirsimSimulator {
       msr::airlib::ImageCaptureBase::ImageType image_type = msr::airlib::ImageCaptureBase::ImageType::Scene;
     };
     std::vector<std::unique_ptr<Sensor>> sensors;
+    Sensor* sensor_to_add = nullptr;  // this is read when passed to a sensor timer
   };
 
   AirsimSimulator(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private);
-
   virtual ~AirsimSimulator() = default;
 
   // ROS callbacks
   void simStateCallback(const ros::TimerEvent &);
   void startupCallback(const ros::TimerEvent &);
   void onShutdown(); // called by the sigint handler
+
+  // Control
+  /**
+   * NOTE(Schmluk): Airsim also exposes a number of other control interfaces, mostly low level. If needed, some of these
+   * could also be included here, but set pose should do for most purposes.
+   */
+  void commandPoseCallback(const geometry_msgs::Pose& msg);
+
+  // Acessors
+  const Config& getConfig() const { return config_; }
 
  protected:
   // ROS
@@ -77,6 +89,7 @@ class AirsimSimulator {
   ros::Publisher pose_pub_;
   ros::Publisher collision_pub_;
   ros::Publisher sim_is_ready_pub_;
+  ros::Subscriber command_pose_sub_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::StaticTransformBroadcaster static_tf_broadcaster_;
   std::vector<std::unique_ptr<SensorTimer>> sensor_timers_;   // These manage the actual sensor reading/publishing
@@ -87,7 +100,7 @@ class AirsimSimulator {
 
   // tools
   Config config_;
-  FrameConverter frame_converter_;
+  FrameConverter frame_converter_;    // the world-to-airsim transformation
 
   // variables
   bool is_connected_;   // whether the airsim client is connected

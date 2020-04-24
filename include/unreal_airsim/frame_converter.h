@@ -1,5 +1,5 @@
-#ifndef UNREAL_AIRSIM_FRAME_TRANSFORMATIONS_H_
-#define UNREAL_AIRSIM_FRAME_TRANSFORMATIONS_H_
+#ifndef UNREAL_AIRSIM_FRAME_CONVERTER_H_
+#define UNREAL_AIRSIM_FRAME_CONVERTER_H_
 
 // ROS
 #include <geometry_msgs/Vector3.h>
@@ -8,7 +8,6 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Transform.h>
 #include <Eigen/Geometry>
-
 
 
 namespace unreal_airsim {
@@ -22,6 +21,7 @@ class FrameConverter {
   FrameConverter();
   virtual ~FrameConverter() = default;
 
+  // setup
   void reset();
   void setupFromYaw(double yaw);  // rad
   void setupFromQuat(const Eigen::Quaterniond &quat);
@@ -35,14 +35,23 @@ class FrameConverter {
   void airsimToRos(geometry_msgs::Pose* pose) const;
   void airsimToRos(geometry_msgs::Transform * pose) const;
 
+  void rosToAirsim(Eigen::Vector3d* point) const;
+  void rosToAirsim(geometry_msgs::Point* point) const;
+  void rosToAirsim(Eigen::Quaterniond *point) const;
+  void rosToAirsim(geometry_msgs::Quaternion* orientation) const;
+  void rosToAirsim(geometry_msgs::Pose* pose) const;
+
   // transformations
-  void transfrormPointAirsimToRos(double* x, double* y, double* z) const;
-  void transfrormOrientationAirsimToRos(double* x, double* y, double* z, double* w) const;
+  void transformPointAirsimToRos(double* x, double* y, double* z) const;
+  void transformOrientationAirsimToRos(double* w, double* x, double* y, double* z) const;
+  void transformPointRosToAirsim(double* x, double* y, double* z) const;
+  void transformOrientationRosToAirsim(double* w, double* x, double* y, double* z) const;
 
  protected:
   Eigen::Matrix3d rotation_;
+  Eigen::Matrix3d rot_inverse_;
 };
 
 } // namespcae unreal_airsim
 
-#endif //UNREAL_AIRSIM_FRAME_TRANSFORMATIONS_H_
+#endif // UNREAL_AIRSIM_FRAME_CONVERTER_H_

@@ -1,14 +1,14 @@
 <launch>
   <!-- Arguments -->
-  <arg name="target_file_path" default=""/> <!-- Defaults to ~/Documents/AirSim/settings.json -->
-  <arg name="config_file_path" default="$(find unreal_airsim)/cfg/demo.yaml"/>
+  <arg name="target" default=""/> <!-- Defaults to ~/Documents/AirSim/settings.json -->
+  <arg name="source" default="$(find unreal_airsim)/cfg/demo.yaml"/>
 
   
 
   <!-- Parse -->
   <node name="config_parser" pkg="unreal_airsim" type="parse_config_to_airsim.py" required="true" output="screen">
-     <param name="target_file_path" value="$(arg target_file_path)"/>
-     <param name="config_file_path" value="$(arg config_file_path)"/>
+     <param name="target_file_path" value="$(arg target)"/>
+     <param name="config_file_path" value="$(arg source)"/>
   </node>
   
 </launch>
