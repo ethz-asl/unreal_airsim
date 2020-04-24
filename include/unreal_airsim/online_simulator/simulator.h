@@ -1,0 +1,109 @@
+#ifndef UNREAL_AIRSIM_ONLINE_SIMULATOR_SIMULATOR_H_
+#define UNREAL_AIRSIM_ONLINE_SIMULATOR_SIMULATOR_H_
+
+#include "unreal_airsim/frame_transformations.h"
+
+// ROS
+#include <ros/ros.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/static_transform_broadcaster.h>
+
+// Airsim
+#include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
+
+#include <string>
+#include <memory>
+
+
+namespace unreal_airsim {
+class SensorTimer;
+/***
+ * This class implements a simulation interface with airsim.
+ * Current application case is for a single Multirotor Vehicle.
+*/
+class AirsimSimulator {
+ public:
+  /***
+   * Settings for the simulation and their defaults.
+   */
+  struct Config {
+    // general settings
+    double state_refresh_rate = 100;  // hz
+    std::string simulator_frame_name = "odom";
+
+    // vehicle (the multirotor)
+    std::string vehicle_name = "airsim_drone";  // Currently assumes a single drone, multi-vehicle sim could be setup
+    double velocity = 1.0;  // m/s
+
+    // sensors
+    struct Sensor{
+      inline static const std::string TYPE_CAMERA = "Camera";
+      inline static const std::string TYPE_LIDAR = "Lidar";
+      inline static const std::string TYPE_IMU = "Imu";
+      std::string name = "";
+      std::string sensor_type = "";
+      std::string output_topic;   // defaults to vehicle_name/sensor_name
+      std::string frame_name;     // defaults to vehicle_name_sensor_name
+      double rate = 10.0;    // Hz
+      bool force_separate_timer = false;    // By default all sensors of identical rate are synced into 1 timer,
+                                            // but that can slow down overall performance
+      Eigen::Vector3d translation;    // T_B_S, default is unit transform
+      Eigen::Quaterniond rotation;
+    };
+    struct Camera : Sensor {
+      std::string image_type_str = "Scene";
+      bool pixels_as_float = false;
+      msr::airlib::ImageCaptureBase::ImageType image_type = msr::airlib::ImageCaptureBase::ImageType::Scene;
+    };
+    std::vector<std::unique_ptr<Sensor>> sensors;
+  };
+
+  AirsimSimulator(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private);
+
+  virtual ~AirsimSimulator() = default;
+
+  // ROS callbacks
+  void simStateCallback(const ros::TimerEvent &);
+  void startupCallback(const ros::TimerEvent &);
+  void onShutdown(); // called by the sigint handler
+
+ protected:
+  // ROS
+  ros::NodeHandle nh_;
+  ros::NodeHandle nh_private_;
+  ros::Timer sim_state_timer_;
+  ros::Timer startup_timer_;
+  ros::Publisher odom_pub_;
+  ros::Publisher pose_pub_;
+  ros::Publisher collision_pub_;
+  ros::Publisher sim_is_ready_pub_;
+  tf2_ros::TransformBroadcaster tf_broadcaster_;
+  tf2_ros::StaticTransformBroadcaster static_tf_broadcaster_;
+  std::vector<std::unique_ptr<SensorTimer>> sensor_timers_;   // These manage the actual sensor reading/publishing
+
+  // Airsim clients (These can be blocking and thus slowing down tasks if only one is used)
+  msr::airlib::MultirotorRpcLibClient airsim_state_client_;
+  msr::airlib::MultirotorRpcLibClient airsim_move_client_;
+
+  // tools
+  Config config_;
+  FrameConverter frame_converter_;
+
+  // variables
+  bool is_connected_;   // whether the airsim client is connected
+  bool is_running_;   // whether the simulator setup successfully and is working
+  bool is_shutdown_;    // After setting is shutdown no more airsim requests are allowed.
+
+  // setup methods
+  bool setupAirsim();   // Connect to Airsim and verify
+  bool setupROS();
+  bool readParamsFromRos();
+  bool initializeSimulationFrame();
+
+  // helper methods
+  bool readTransformFromRos(const std::string &topic, Eigen::Vector3d* translation, Eigen::Quaterniond * rotation);
+};
+
+} // namespcae unreal_airsim
+
+#endif // UNREAL_AIRSIM_ONLINE_SIMULATOR_SIMULATOR_H_

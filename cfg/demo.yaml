@@ -1,0 +1,67 @@
+# General Settings
+vehicle_name: airsim_drone  # Params in lower_case are processed by unreal_airsim
+state_refresh_rate: 100
+ClockSpeed: 1.0             # Params in CamelCase are forwarded to the AirSim config and use AirSim defaults
+ 
+# Which Sensors to mount in the simulation
+sensors:
+  Scene_cam:
+    sensor_type: Camera
+    image_type: Scene
+    rate: 3
+    CaptureSettings:   
+      Width: 640
+      Height: 480
+      FOV_Degrees: 90
+    T_B_S:
+      - [1, 0, 0, 0.3]
+      - [0, 1, 0, 0]
+      - [0, 0, 1, 0]
+      - [0, 0, 0, 1]
+      
+  Depth_cam:
+    sensor_type: Camera
+    image_type: DepthPlanner
+    rate: 3
+    pixels_as_float: true
+    CaptureSettings:   
+      Width: 640
+      Height: 480
+      FOV_Degrees: 90
+    T_B_S:
+      - [1, 0, 0, 0.3]
+      - [0, 1, 0, 0]
+      - [0, 0, 1, 0]
+      - [0, 0, 0, 1]
+   
+  Seg_cam:
+    sensor_type: Camera
+    image_type: Segmentation
+    rate: 3
+    CaptureSettings:   
+      Width: 640
+      Height: 480
+      FOV_Degrees: 90
+    T_B_S:
+      - [1, 0, 0, 0.3]
+      - [0, 1, 0, 0]
+      - [0, 0, 1, 0]
+      - [0, 0, 0, 1]
+      
+  Lidar:
+    sensor_type: Lidar
+    rate: 3
+    T_B_S:  # Transformation to the sensor link in body-frame (0 yaw, 30pitch, 0 roll)
+      - [0.8660254,   0.0000000,  -0.5000000, 0]
+      - [0.0000000,   1.0000000,  0.0000000,  0]
+      - [0.5000000,   0.0000000,  0.8660254,  0]
+      - [0,           0,          0,          1]
+    NumberOfChannels: 16
+    PointsPerSecond: 100000
+    RotationsPerSecond: 10
+    VerticalFOVUpper: 30
+    VerticalFOVLower: -30
+
+  Imu:
+    sensor_type: Imu
+    rate: 100
