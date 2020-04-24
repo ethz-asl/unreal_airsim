@@ -237,7 +237,8 @@ bool AirsimSimulator::setupROS() {
                                                              frame_converter_));
       timer = sensor_timers_.back().get();
     }
-    timer->addSensor(sensor.get());
+    config_.sensor_to_add = sensor.get();
+    timer->addSensor(this);
     // Sensor transform broadcast
     geometry_msgs::TransformStamped static_transformStamped;
     Eigen::Quaterniond rotation = sensor->rotation;

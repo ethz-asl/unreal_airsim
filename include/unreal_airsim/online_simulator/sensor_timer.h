@@ -1,18 +1,19 @@
 #ifndef UNREAL_AIRSIM_ONLINE_SIMULATOR_SENSOR_TIMER_H_
 #define UNREAL_AIRSIM_ONLINE_SIMULATOR_SENSOR_TIMER_H_
 
-#include "unreal_airsim/frame_transformations.h"
-#include "unreal_airsim/online_simulator/simulator.h"
+#include "unreal_airsim/frame_converter.h"
 
 // ROS
 #include <ros/ros.h>
 
 // Airsim
 #include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
+#include "simulator.h"
 
 #include <string>
 
 namespace unreal_airsim {
+class AirsimSimulator;
 
 /***
  *  This class manages the sensor timers and callbacks for the simulator.
@@ -31,7 +32,7 @@ class SensorTimer {
   double getRate() const;
   bool isPrivate() const;
   void signalShutdown();
-  void addSensor(const AirsimSimulator::Config::Sensor *sensor);
+  void addSensor(const AirsimSimulator *simulator);
 
  protected:
   // general

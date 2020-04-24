@@ -35,7 +35,7 @@ catkin_package()
 #############
 cs_add_library(${PROJECT_NAME}
         # Modules
-        src/frame_transformations.cpp
+        src/frame_converter.cpp
         src/online_simulator/simulator.cpp
         src/online_simulator/sensor_timer.cpp
         )

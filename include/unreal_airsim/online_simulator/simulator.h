@@ -1,7 +1,8 @@
 #ifndef UNREAL_AIRSIM_ONLINE_SIMULATOR_SIMULATOR_H_
 #define UNREAL_AIRSIM_ONLINE_SIMULATOR_SIMULATOR_H_
 
-#include "unreal_airsim/frame_transformations.h"
+#include "unreal_airsim/frame_converter.h"
+#include "unreal_airsim/online_simulator/sensor_timer.h"
 
 // ROS
 #include <ros/ros.h>
@@ -47,7 +48,7 @@ class AirsimSimulator {
       std::string frame_name;     // defaults to vehicle_name_sensor_name
       double rate = 10.0;    // Hz
       bool force_separate_timer = false;    // By default all sensors of identical rate are synced into 1 timer,
-                                            // but that can slow down overall performance
+                                            // but that can slow down overall performance for a specific sensor
       Eigen::Vector3d translation;    // T_B_S, default is unit transform
       Eigen::Quaterniond rotation;
     };
@@ -57,10 +58,10 @@ class AirsimSimulator {
       msr::airlib::ImageCaptureBase::ImageType image_type = msr::airlib::ImageCaptureBase::ImageType::Scene;
     };
     std::vector<std::unique_ptr<Sensor>> sensors;
+    Sensor* sensor_to_add = nullptr;  // this is read when passed to a sensor timer
   };
 
   AirsimSimulator(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private);
-
   virtual ~AirsimSimulator() = default;
 
   // ROS callbacks
@@ -74,6 +75,9 @@ class AirsimSimulator {
    * could also be included here, but set pose should do for most purposes.
    */
   void commandPoseCallback(const geometry_msgs::Pose& msg);
+
+  // Acessors
+  const Config& getConfig() const { return config_; }
 
  protected:
   // ROS
@@ -96,7 +100,7 @@ class AirsimSimulator {
 
   // tools
   Config config_;
-  FrameConverter frame_converter_;
+  FrameConverter frame_converter_;    // the world-to-airsim transformation
 
   // variables
   bool is_connected_;   // whether the airsim client is connected

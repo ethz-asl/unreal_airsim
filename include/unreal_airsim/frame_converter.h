@@ -1,5 +1,5 @@
-#ifndef UNREAL_AIRSIM_FRAME_TRANSFORMATIONS_H_
-#define UNREAL_AIRSIM_FRAME_TRANSFORMATIONS_H_
+#ifndef UNREAL_AIRSIM_FRAME_CONVERTER_H_
+#define UNREAL_AIRSIM_FRAME_CONVERTER_H_
 
 // ROS
 #include <geometry_msgs/Vector3.h>
@@ -8,7 +8,6 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Transform.h>
 #include <Eigen/Geometry>
-
 
 
 namespace unreal_airsim {
@@ -43,10 +42,10 @@ class FrameConverter {
   void rosToAirsim(geometry_msgs::Pose* pose) const;
 
   // transformations
-  void transfrormPointAirsimToRos(double* x, double* y, double* z) const;
-  void transfrormOrientationAirsimToRos(double* w, double* x, double* y, double* z) const;
-  void transfrormPointRosToAirsim(double* x, double* y, double* z) const;
-  void transfrormOrientationRosToAirsim(double* w, double* x, double* y, double* z) const;
+  void transformPointAirsimToRos(double* x, double* y, double* z) const;
+  void transformOrientationAirsimToRos(double* w, double* x, double* y, double* z) const;
+  void transformPointRosToAirsim(double* x, double* y, double* z) const;
+  void transformOrientationRosToAirsim(double* w, double* x, double* y, double* z) const;
 
  protected:
   Eigen::Matrix3d rotation_;
@@ -55,4 +54,4 @@ class FrameConverter {
 
 } // namespcae unreal_airsim
 
-#endif //UNREAL_AIRSIM_FRAME_TRANSFORMATIONS_H_
+#endif // UNREAL_AIRSIM_FRAME_CONVERTER_H_

@@ -2,10 +2,11 @@
 
 #include <glog/logging.h>
 #include <csignal>
+#include <memory>
 
 
-// A little ugly but lets the simulator shutdown in a controlled fashion
-unreal_airsim::AirsimSimulator* the_simulator = nullptr;
+// Lets the simulator shutdown in a controlled fashion
+std::unique_ptr<unreal_airsim::AirsimSimulator> the_simulator;
 void sigintHandler(int sig) {
   if(the_simulator){
     the_simulator->onShutdown();
@@ -25,9 +26,11 @@ int main(int argc, char **argv) {
   ros::NodeHandle nh("");
   ros::NodeHandle nh_private("~");
   signal(SIGINT, sigintHandler);
-  the_simulator = new unreal_airsim::AirsimSimulator(nh, nh_private); // After this the process is killed, no memory leak
+  the_simulator = std::make_unique<unreal_airsim::AirsimSimulator>(nh, nh_private);
 
-  ros::MultiThreadedSpinner spinner(0);
+  int n_threads;
+  nh_private.param("n_threads", n_threads, 0);  // 0 defaults to # physical cores
+  ros::MultiThreadedSpinner spinner(n_threads);
   spinner.spin();
   return 0;
 }

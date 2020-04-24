@@ -1,4 +1,7 @@
-#include "unreal_airsim/frame_transformations.h"
+#include "unreal_airsim/frame_converter.h"
+
+#include <glog/logging.h>
+#include <cmath>
 
 namespace unreal_airsim {
 
@@ -19,11 +22,10 @@ void FrameConverter::setupFromYaw(double yaw) {
 
 void FrameConverter::setupFromQuat(const Eigen::Quaterniond &quat) {
   rotation_ = quat;
-  rotation_.normalize();
   rot_inverse_ = rotation_.inverse();
 }
 
-void FrameConverter::transfrormPointAirsimToRos(double *x, double *y, double *z) const {
+void FrameConverter::transformPointAirsimToRos(double *x, double *y, double *z) const {
   // axis orientations
   Eigen::Vector3d p(*x, -*y, -*z);  // coordinate axis inversions
   p = rotation_ * p;            // rotate
@@ -32,9 +34,12 @@ void FrameConverter::transfrormPointAirsimToRos(double *x, double *y, double *z)
   *z = p[2];
 }
 
-void FrameConverter::transfrormOrientationAirsimToRos(double *w, double *x, double *y, double *z) const {
+void FrameConverter::transformOrientationAirsimToRos(double *w, double *x, double *y, double *z) const {
   Eigen::Quaterniond q(*w, *x, -*y, -*z); // this defines a mirroring of q on the YZ-plane
-  q.normalize();    // just to make sure we return a unit quaternion
+  if (std::fabs(q.norm() - 1.0) > 1e-3){
+    LOG(WARNING) << "Received non-normalized quaternion (norm is " << q.norm() <<").";
+    q.normalize();
+  }
   q = rotation_ * q;  // rotate
   *x = q.x();
   *y = q.y();
@@ -42,7 +47,7 @@ void FrameConverter::transfrormOrientationAirsimToRos(double *w, double *x, doub
   *w = q.w();
 }
 
-void FrameConverter::transfrormPointRosToAirsim(double *x, double *y, double *z) const {
+void FrameConverter::transformPointRosToAirsim(double *x, double *y, double *z) const {
   // axis orientations
   Eigen::Vector3d p(*x, *y, *z);
   p = rot_inverse_ * p;  // rotate
@@ -51,9 +56,12 @@ void FrameConverter::transfrormPointRosToAirsim(double *x, double *y, double *z)
   *z = -p[2];
 }
 
-void FrameConverter::transfrormOrientationRosToAirsim(double *w, double *x, double *y, double *z) const {
+void FrameConverter::transformOrientationRosToAirsim(double *w, double *x, double *y, double *z) const {
   Eigen::Quaterniond q(*w, *x, *y, *z);
-  q.normalize();    // just to make sure we return a unit quaternion
+  if (std::fabs(q.norm() - 1.0) > 1e-3){
+    LOG(WARNING) << "Received non-normalized quaternion (norm is " << q.norm() <<").";
+    q.normalize();
+  }
   q = rot_inverse_ * q;  // rotate
   *x = q.x();   // this defines a mirroring of q on the YZ-plane
   *y = -q.y();
@@ -64,23 +72,23 @@ void FrameConverter::transfrormOrientationRosToAirsim(double *w, double *x, doub
 // Interfaces
 
 void FrameConverter::airsimToRos(geometry_msgs::Vector3 *point) const {
-  transfrormPointAirsimToRos(&(point->x), &(point->y), &(point->z));
+  transformPointAirsimToRos(&(point->x), &(point->y), &(point->z));
 }
 
 void FrameConverter::airsimToRos(geometry_msgs::Point *point) const {
-  transfrormPointAirsimToRos(&(point->x), &(point->y), &(point->z));
+  transformPointAirsimToRos(&(point->x), &(point->y), &(point->z));
 }
 
 void FrameConverter::airsimToRos(Eigen::Vector3d *point) const {
-  transfrormPointAirsimToRos(&(point->x()), &(point->y()), &(point->z()));
+  transformPointAirsimToRos(&(point->x()), &(point->y()), &(point->z()));
 }
 
 void FrameConverter::airsimToRos(geometry_msgs::Quaternion *orientation) const {
-  transfrormOrientationAirsimToRos(&(orientation->w), &(orientation->x), &(orientation->y), &(orientation->z));
+  transformOrientationAirsimToRos(&(orientation->w), &(orientation->x), &(orientation->y), &(orientation->z));
 }
 
 void FrameConverter::airsimToRos(Eigen::Quaterniond *orientation) const {
-  transfrormOrientationAirsimToRos(&(orientation->w()), &(orientation->x()), &(orientation->y()), &(orientation->z()));
+  transformOrientationAirsimToRos(&(orientation->w()), &(orientation->x()), &(orientation->y()), &(orientation->z()));
 }
 
 void FrameConverter::airsimToRos(geometry_msgs::Pose *pose) const {
@@ -94,19 +102,19 @@ void FrameConverter::airsimToRos(geometry_msgs::Transform *pose) const {
 }
 
 void FrameConverter::rosToAirsim(Eigen::Vector3d *point) const {
-  transfrormPointRosToAirsim(&(point->x()), &(point->y()), &(point->z()));
+  transformPointRosToAirsim(&(point->x()), &(point->y()), &(point->z()));
 }
 
 void FrameConverter::rosToAirsim(geometry_msgs::Point *point) const {
-  transfrormPointRosToAirsim(&(point->x), &(point->y), &(point->z));
+  transformPointRosToAirsim(&(point->x), &(point->y), &(point->z));
 }
 
 void FrameConverter::rosToAirsim(geometry_msgs::Quaternion *orientation) const {
-  transfrormOrientationRosToAirsim(&(orientation->w), &(orientation->x), &(orientation->y), &(orientation->z));
+  transformOrientationRosToAirsim(&(orientation->w), &(orientation->x), &(orientation->y), &(orientation->z));
 }
 
 void FrameConverter::rosToAirsim(Eigen::Quaterniond *orientation) const {
-  transfrormOrientationRosToAirsim(&(orientation->w()), &(orientation->x()), &(orientation->y()), &(orientation->z()));
+  transformOrientationRosToAirsim(&(orientation->w()), &(orientation->x()), &(orientation->y()), &(orientation->z()));
 }
 
 void FrameConverter::rosToAirsim(geometry_msgs::Pose *pose) const {
