@@ -8,7 +8,6 @@
 
 // Airsim
 #include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
-#include "simulator.h"
 
 #include <string>
 
