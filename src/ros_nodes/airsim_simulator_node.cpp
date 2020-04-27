@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
   the_simulator = std::make_unique<unreal_airsim::AirsimSimulator>(nh, nh_private);
 
   int n_threads;
-  nh_private.param("n_threads", n_threads, 0);  // 0 defaults to # physical cores
+  nh_private.param("n_threads", n_threads, 0);  // 0 defaults to #physical cores
   ros::MultiThreadedSpinner spinner(n_threads);
   spinner.spin();
   return 0;

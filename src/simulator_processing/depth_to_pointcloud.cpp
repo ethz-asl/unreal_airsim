@@ -7,7 +7,6 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 
-#include <iostream>
 #include <cmath>
 
 namespace unreal_airsim::simulator_processor {
@@ -114,6 +113,9 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
    * NOTE(schmluk): This method assumes that depth and color image are from the same simulated camera, i.e. are
    * perfectly aligned and have identical settings (resolution, intrinsics, extrinsics)
    */
+   if (pub_.getNumSubscribers() == 0){
+     return;
+   }
   cv_bridge::CvImageConstPtr depth_img, color_img;
   depth_img = cv_bridge::toCvShare(depth_ptr, depth_ptr->encoding);
   if (use_color_) {
@@ -161,7 +163,6 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
         out_rgb[0] = color[0];
         out_rgb[1] = color[1];
         out_rgb[2] = color[2];
-        //std::cout << out_rgb[0] << ", " << out_rgb[1] << ", " << out_rgb[2] << ", " << (uint8_t)color.val[0] << std::endl;
         ++out_rgb;
       }
     }
