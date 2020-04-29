@@ -12,13 +12,16 @@ STRICT_MODE_ON
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/Bool.h>
+#include <rosgraph_msgs/Clock.h>
 
 #include <glog/logging.h>
 
 #include <iostream>
 #include <chrono>
-#include <thread>
 #include <csignal>
+#include <thread>
+#include <functional>
+
 
 namespace unreal_airsim {
 
@@ -41,8 +44,9 @@ AirsimSimulator::AirsimSimulator(const ros::NodeHandle &nh, const ros::NodeHandl
   // setup everything
   initializeSimulationFrame();
   setupROS();
+  startSimTimer();
 
-  // Startup via callback
+  // Startup the vehicle simulation via callback
   startup_timer_ = nh_private_.createTimer(ros::Duration(0.1),
                                            &AirsimSimulator::startupCallback, this);
 }
@@ -51,7 +55,9 @@ bool AirsimSimulator::readParamsFromRos() {
   AirsimSimulator::Config defaults;
 
   // params
+  nh_.param("/use_sim_time", use_sim_time_, false);
   nh_private_.param("state_refresh_rate", config_.state_refresh_rate, defaults.state_refresh_rate);
+  nh_private_.param("time_publisher_interval", config_.time_publisher_interval, defaults.time_publisher_interval);
   nh_private_.param("simulator_frame_name", config_.simulator_frame_name, defaults.simulator_frame_name);
   nh_private_.param("vehicle_name", config_.vehicle_name, defaults.vehicle_name);
   nh_private_.param("velocity", config_.velocity, defaults.velocity);
@@ -60,6 +66,11 @@ bool AirsimSimulator::readParamsFromRos() {
   if (config_.state_refresh_rate <= 0.0) {
     config_.state_refresh_rate = defaults.state_refresh_rate;
     LOG(WARNING) << "Param 'state_refresh_rate' expected > 0.0, set to '" << defaults.state_refresh_rate
+                 << "' (default).";
+  }
+  if (config_.time_publisher_interval < 0) {
+    config_.time_publisher_interval = defaults.time_publisher_interval;
+    LOG(WARNING) << "Param 'time_publisher_interval' expected >= 0, set to '" << defaults.time_publisher_interval
                  << "' (default).";
   }
   if (config_.velocity <= 0.0) {
@@ -206,13 +217,15 @@ bool AirsimSimulator::setupAirsim() {
 
 bool AirsimSimulator::setupROS() {
   // General
-  // Publish state (timestamps??)
   sim_state_timer_ = nh_.createTimer(ros::Duration(1.0 / config_.state_refresh_rate),
                                      &AirsimSimulator::simStateCallback, this);
   odom_pub_ = nh_.advertise<nav_msgs::Odometry>(config_.vehicle_name + "/ground_truth/odometry", 5);
   pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>(config_.vehicle_name + "/ground_truth/pose", 5);
   collision_pub_ = nh_.advertise<std_msgs::Bool>(config_.vehicle_name + "/collision", 1);
   sim_is_ready_pub_ = nh_.advertise<std_msgs::Bool>("simulation_is_ready", 1);
+  if (use_sim_time_){
+    time_pub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", 50);
+  }
 
   // control interfaces
   command_pose_sub_ = nh_.subscribe(config_.vehicle_name + "/command/pose", 5, &AirsimSimulator::commandPoseCallback, this);
@@ -234,7 +247,7 @@ bool AirsimSimulator::setupROS() {
                                                              config_.sensors[i]->rate,
                                                              config_.sensors[i]->force_separate_timer,
                                                              config_.vehicle_name,
-                                                             frame_converter_));
+                                                             this));
       timer = sensor_timers_.back().get();
     }
     timer->addSensor(*this, i);
@@ -339,6 +352,47 @@ void AirsimSimulator::startupCallback(const ros::TimerEvent &) {
   startup_timer_.stop();
 }
 
+bool AirsimSimulator::startSimTimer() {
+  /***
+   * NOTE(schmluk): Because, although airsim and ros both use the system clock as default for time-stamping according to
+   * their docs, these are drifting clocks! If use_sim_time is set in the launch file, we just use airsim time as ros
+   * time and publish it at a fixed wall-time frequency (see param time_publisher_interval).
+   */
+  if (use_sim_time_) {
+    std::thread([this]() {
+      while (is_connected_) {
+        auto next = std::chrono::steady_clock::now() + std::chrono::milliseconds(config_.time_publisher_interval);
+        readSimTimeCallback();
+        if (next > std::chrono::steady_clock::now()) {
+          std::this_thread::sleep_until(next);
+        }
+      }
+    }).detach();
+  }
+}
+
+void AirsimSimulator::readSimTimeCallback(){
+  /**
+   * TODO(schmluk): make this nice.
+   * This is currently a work-around as getting only the time stamp is not yet exposed. However, this call does not run
+   * on the game thread afaik and was not measured to slow down other tasks.
+   */
+  uint64_t ts =  airsim_time_client_.getMultirotorState(config_.vehicle_name).timestamp;
+  rosgraph_msgs::Clock msg;
+  msg.clock.fromNSec(ts);
+  time_pub_.publish(msg);
+}
+
+ros::Time AirsimSimulator::getTimeStamp(msr::airlib::TTimePoint airsim_stamp) {
+  if (use_sim_time_ && airsim_stamp > 0){
+    ros::Time t;
+    t.fromNSec(airsim_stamp);
+    return t;
+  } else {
+    return ros::Time::now();
+  }
+}
+
 void AirsimSimulator::simStateCallback(const ros::TimerEvent &) {
   if (is_shutdown_) { return; }
   if (airsim_state_client_.getConnectionState() != RpcLibClientBase::ConnectionState::Connected) {
@@ -348,42 +402,50 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent &) {
     raise(SIGINT);
     return;
   }
-  msr::airlib::Kinematics::State state = airsim_state_client_.simGetGroundTruthKinematics(config_.vehicle_name);
+  /***
+   * Note(schmluk): getMultiRotorState returns the *estimated* current state. According to their docs and current
+   * implementation, this is not implemented and resturns the *ground truth* state. However, this might change in the
+   * future. Alternavtively, we can force ground truth via
+   * msr::airlib::Kinematics::State state = airsim_state_client_.simGetGroundTruthKinematics(config_.vehicle_name);
+   * But that comes without a timestamp.
+   */
+  msr::airlib::MultirotorState state = airsim_state_client_.getMultirotorState(config_.vehicle_name);
+  ros::Time stamp = getTimeStamp(state.timestamp);
 
   // body frame
   geometry_msgs::TransformStamped transformStamped;
-  transformStamped.header.stamp = ros::Time::now();
+  transformStamped.header.stamp = stamp;
   transformStamped.header.frame_id = config_.simulator_frame_name;
   transformStamped.child_frame_id = config_.vehicle_name;
-  transformStamped.transform.translation.x = state.pose.position[0];
-  transformStamped.transform.translation.y = state.pose.position[1];
-  transformStamped.transform.translation.z = state.pose.position[2];
-  transformStamped.transform.rotation.x = state.pose.orientation.x();
-  transformStamped.transform.rotation.y = state.pose.orientation.y();
-  transformStamped.transform.rotation.z = state.pose.orientation.z();
-  transformStamped.transform.rotation.w = state.pose.orientation.w();
+  transformStamped.transform.translation.x = state.kinematics_estimated.pose.position[0];
+  transformStamped.transform.translation.y = state.kinematics_estimated.pose.position[1];
+  transformStamped.transform.translation.z = state.kinematics_estimated.pose.position[2];
+  transformStamped.transform.rotation.x = state.kinematics_estimated.pose.orientation.x();
+  transformStamped.transform.rotation.y = state.kinematics_estimated.pose.orientation.y();
+  transformStamped.transform.rotation.z = state.kinematics_estimated.pose.orientation.z();
+  transformStamped.transform.rotation.w = state.kinematics_estimated.pose.orientation.w();
   frame_converter_.airsimToRos(&(transformStamped.transform));
   tf_broadcaster_.sendTransform(transformStamped);
 
   // odom
   if (odom_pub_.getNumSubscribers() > 0) {
     nav_msgs::Odometry odom_msg;
-    odom_msg.header.stamp = ros::Time::now();
+    odom_msg.header.stamp = stamp;
     odom_msg.header.frame_id = config_.simulator_frame_name;
     odom_msg.child_frame_id = config_.vehicle_name;
-    odom_msg.pose.pose.position.x = state.pose.position[0];
-    odom_msg.pose.pose.position.y = state.pose.position[1];
-    odom_msg.pose.pose.position.z = state.pose.position[2];
-    odom_msg.pose.pose.orientation.x = state.pose.orientation.x();
-    odom_msg.pose.pose.orientation.y = state.pose.orientation.y();
-    odom_msg.pose.pose.orientation.z = state.pose.orientation.z();
-    odom_msg.pose.pose.orientation.w = state.pose.orientation.w();
-    odom_msg.twist.twist.linear.x = state.twist.linear.x();
-    odom_msg.twist.twist.linear.y = state.twist.linear.y();
-    odom_msg.twist.twist.linear.z = state.twist.linear.z();
-    odom_msg.twist.twist.angular.x = state.twist.angular.x();
-    odom_msg.twist.twist.angular.y = state.twist.angular.y();
-    odom_msg.twist.twist.angular.z = state.twist.angular.z();
+    odom_msg.pose.pose.position.x = state.kinematics_estimated.pose.position[0];
+    odom_msg.pose.pose.position.y = state.kinematics_estimated.pose.position[1];
+    odom_msg.pose.pose.position.z = state.kinematics_estimated.pose.position[2];
+    odom_msg.pose.pose.orientation.x = state.kinematics_estimated.pose.orientation.x();
+    odom_msg.pose.pose.orientation.y = state.kinematics_estimated.pose.orientation.y();
+    odom_msg.pose.pose.orientation.z = state.kinematics_estimated.pose.orientation.z();
+    odom_msg.pose.pose.orientation.w = state.kinematics_estimated.pose.orientation.w();
+    odom_msg.twist.twist.linear.x = state.kinematics_estimated.twist.linear.x();
+    odom_msg.twist.twist.linear.y = state.kinematics_estimated.twist.linear.y();
+    odom_msg.twist.twist.linear.z = state.kinematics_estimated.twist.linear.z();
+    odom_msg.twist.twist.angular.x = state.kinematics_estimated.twist.angular.x();
+    odom_msg.twist.twist.angular.y = state.kinematics_estimated.twist.angular.y();
+    odom_msg.twist.twist.angular.z = state.kinematics_estimated.twist.angular.z();
     frame_converter_.airsimToRos(&(odom_msg.pose.pose));
     // TODO(schmluk): verify that these twist conversions work as intended
     frame_converter_.airsimToRos(&(odom_msg.twist.twist.linear));
@@ -392,22 +454,22 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent &) {
 
     if (pose_pub_.getNumSubscribers() > 0) {
       geometry_msgs::PoseStamped pose_msg;
-      pose_msg.header.stamp = ros::Time::now();
+      pose_msg.header.stamp = stamp;
       pose_msg.header.frame_id = config_.simulator_frame_name;
       pose_msg.pose = odom_msg.pose.pose;
       pose_pub_.publish(pose_msg);
     }
   } else if (pose_pub_.getNumSubscribers() > 0) {
     geometry_msgs::PoseStamped pose_msg;
-    pose_msg.header.stamp = ros::Time::now();
+    pose_msg.header.stamp = stamp;
     pose_msg.header.frame_id = config_.simulator_frame_name;
-    pose_msg.pose.position.x = state.pose.position[0];
-    pose_msg.pose.position.y = state.pose.position[1];
-    pose_msg.pose.position.z = state.pose.position[2];
-    pose_msg.pose.orientation.x = state.pose.orientation.x();
-    pose_msg.pose.orientation.y = state.pose.orientation.y();
-    pose_msg.pose.orientation.z = state.pose.orientation.z();
-    pose_msg.pose.orientation.w = state.pose.orientation.w();
+    pose_msg.pose.position.x = state.kinematics_estimated.pose.position[0];
+    pose_msg.pose.position.y = state.kinematics_estimated.pose.position[1];
+    pose_msg.pose.position.z = state.kinematics_estimated.pose.position[2];
+    pose_msg.pose.orientation.x = state.kinematics_estimated.pose.orientation.x();
+    pose_msg.pose.orientation.y = state.kinematics_estimated.pose.orientation.y();
+    pose_msg.pose.orientation.z = state.kinematics_estimated.pose.orientation.z();
+    pose_msg.pose.orientation.w = state.kinematics_estimated.pose.orientation.w();
     frame_converter_.airsimToRos(&(pose_msg.pose));
     pose_pub_.publish(pose_msg);
   }

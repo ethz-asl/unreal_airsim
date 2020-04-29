@@ -8,20 +8,19 @@
 
 #include <glog/logging.h>
 
-
 namespace unreal_airsim {
 
 SensorTimer::SensorTimer(const ros::NodeHandle &nh,
                          double rate,
                          bool is_private,
                          const std::string &vehicle_name,
-                         const FrameConverter &world_frame_converter) :
+                         AirsimSimulator *parent) :
     nh_(nh),
     is_private_(is_private),
     rate_(rate),
     vehicle_name_(vehicle_name),
     is_shutdown_(false),
-    world_frame_converter_(world_frame_converter) {
+    parent_(parent) {
   timer_ = nh_.createTimer(ros::Duration(1.0 / rate), &SensorTimer::timerCallback, this);
 }
 
@@ -43,7 +42,7 @@ void SensorTimer::timerCallback(const ros::TimerEvent &) {
 }
 
 void SensorTimer::addSensor(const AirsimSimulator &simulator, int sensor_index) {
-  AirsimSimulator::Config::Sensor* sensor = simulator.getConfig().sensors[sensor_index].get();
+  AirsimSimulator::Config::Sensor *sensor = simulator.getConfig().sensors[sensor_index].get();
   if (sensor->sensor_type == AirsimSimulator::Config::Sensor::TYPE_CAMERA) {
     auto camera = (AirsimSimulator::Config::Camera *) sensor;
     camera_pubs_.push_back(nh_.advertise<sensor_msgs::Image>(camera->output_topic, 5));
@@ -70,7 +69,7 @@ void SensorTimer::processCameras() {
   if (!image_requests_.empty()) {
     std::vector<msr::airlib::ImageCaptureBase::ImageResponse>
         responses = airsim_client_.simGetImages(image_requests_, vehicle_name_);
-    ros::Time timestamp = ros::Time::now();
+    ros::Time timestamp = parent_->getTimeStamp(responses[0].time_stamp); // these are synchronized
     for (size_t i = 0; i < responses.size(); ++i) {
       if (camera_pubs_[i].getNumSubscribers() > 0) {
         sensor_msgs::ImagePtr msg(new sensor_msgs::Image);
@@ -102,7 +101,7 @@ void SensorTimer::processLidars() {
     msr::airlib::LidarData lidar_data = airsim_client_.getLidarData(lidar_names_[i], vehicle_name_);
     sensor_msgs::PointCloud2Ptr msg(new sensor_msgs::PointCloud2);
     msg->header.frame_id = lidar_frame_names_[i];
-    msg->header.stamp = ros::Time::now();
+    msg->header.stamp = parent_->getTimeStamp(lidar_data.time_stamp);
     msg->height = 1;
     msg->width = lidar_data.point_cloud.size() / 3;
     msg->fields.resize(3);
@@ -122,8 +121,8 @@ void SensorTimer::processLidars() {
     std::vector<float> data_std = lidar_data.point_cloud;
     for (size_t j = 0; j < data_std.size(); j += 3) {
       // points are in sensor-Frame but with airsim axis
-      data_std[j+1] *= -1.0;
-      data_std[j+2] *= -1.0;
+      data_std[j + 1] *= -1.0;
+      data_std[j + 2] *= -1.0;
     }
     auto bytes = reinterpret_cast<const unsigned char *>(&data_std[0]);
     vector<unsigned char> lidar_msg_data(bytes, bytes + sizeof(float) * data_std.size());
@@ -136,15 +135,16 @@ void SensorTimer::processImus() {
   if (is_shutdown_) { return; }
   for (size_t i = 0; i < imu_names_.size(); ++i) {
     msr::airlib::ImuBase::Output imu_data = airsim_client_.getImuData(imu_names_[i], vehicle_name_);
+
     sensor_msgs::ImuPtr msg(new sensor_msgs::Imu);
     // orientation
     msg->header.frame_id = imu_frame_names_[i];
-    msg->header.stamp = ros::Time::now();
+    msg->header.stamp = parent_->getTimeStamp(imu_data.time_stamp);
     msg->orientation.x = imu_data.orientation.x();
     msg->orientation.y = imu_data.orientation.y();
     msg->orientation.z = imu_data.orientation.z();
     msg->orientation.w = imu_data.orientation.w();
-    world_frame_converter_.airsimToRos(&(msg->orientation));
+    parent_->getFrameConverter().airsimToRos(&(msg->orientation));    // transform to simulation frame
     // Rates (these should also be in sensor-frame but with airsim axis, TODO(schmluk): Test this
     msg->angular_velocity.x = imu_data.angular_velocity.x();
     msg->angular_velocity.y = -imu_data.angular_velocity.y();

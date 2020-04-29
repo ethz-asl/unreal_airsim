@@ -23,7 +23,7 @@ class SensorTimer {
               double rate,
               bool is_private,
               const std::string &vehicle_name,
-              const FrameConverter &world_frame_converter);
+              AirsimSimulator* parent);
   virtual ~SensorTimer() = default;
 
   void timerCallback(const ros::TimerEvent &);
@@ -34,6 +34,8 @@ class SensorTimer {
   void addSensor(const AirsimSimulator &simulator, int sensor_index);
 
  protected:
+  AirsimSimulator* parent_;   // Acces to owner
+
   // general
   bool is_shutdown_;
   double rate_;    // rate of the sensor callback
@@ -42,7 +44,6 @@ class SensorTimer {
   ros::Timer timer_;
   std::string vehicle_name_;
   ros::NodeHandle nh_;
-  FrameConverter world_frame_converter_;
 
   // methods
   void processCameras();

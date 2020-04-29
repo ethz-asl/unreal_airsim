@@ -9,6 +9,7 @@
 #include <ros/ros.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
+#include <std_msgs/Time.h>
 
 // Airsim
 #include <vehicles/multirotor/api/MultirotorRpcLibClient.hpp>
@@ -16,6 +17,7 @@
 
 #include <string>
 #include <memory>
+#include <thread>
 
 
 namespace unreal_airsim {
@@ -26,11 +28,12 @@ namespace unreal_airsim {
 class AirsimSimulator {
  public:
   /***
-   * Settings for the simulation and their defaults.
+   * Available settings for the simulation and their defaults.
    */
   struct Config {
     // general settings
     double state_refresh_rate = 100;  // hz
+    int time_publisher_interval = 2; // ms, this is the interval in wall-time in which sim_time is published, i.e. 500 Hz
     std::string simulator_frame_name = "odom";
 
     // vehicle (the multirotor)
@@ -79,6 +82,8 @@ class AirsimSimulator {
 
   // Acessors
   const Config& getConfig() const { return config_; }
+  const FrameConverter& getFrameConverter() const {return frame_converter_;}
+  ros::Time getTimeStamp(msr::airlib::TTimePoint airsim_stamp);
 
  protected:
   // ROS
@@ -90,9 +95,13 @@ class AirsimSimulator {
   ros::Publisher pose_pub_;
   ros::Publisher collision_pub_;
   ros::Publisher sim_is_ready_pub_;
+  ros::Publisher time_pub_;
   ros::Subscriber command_pose_sub_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::StaticTransformBroadcaster static_tf_broadcaster_;
+
+  // Read sim time from AirSim
+  std::thread timer_thread_;
 
   // components
   std::vector<std::unique_ptr<SensorTimer>> sensor_timers_;   // These manage the actual sensor reading/publishing
@@ -101,6 +110,7 @@ class AirsimSimulator {
   // Airsim clients (These can be blocking and thus slowing down tasks if only one is used)
   msr::airlib::MultirotorRpcLibClient airsim_state_client_;
   msr::airlib::MultirotorRpcLibClient airsim_move_client_;
+  msr::airlib::MultirotorRpcLibClient airsim_time_client_;
 
   // tools
   Config config_;
@@ -110,12 +120,17 @@ class AirsimSimulator {
   bool is_connected_;   // whether the airsim client is connected
   bool is_running_;   // whether the simulator setup successfully and is working
   bool is_shutdown_;    // After setting is shutdown no more airsim requests are allowed.
+  bool use_sim_time_;   // Publish ros time based on the airsim clock
 
   // setup methods
   bool setupAirsim();   // Connect to Airsim and verify
   bool setupROS();
   bool readParamsFromRos();
   bool initializeSimulationFrame();
+  bool startSimTimer();
+
+  // methods
+  void readSimTimeCallback();
 
   // helper methods
   bool readTransformFromRos(const std::string &topic, Eigen::Vector3d* translation, Eigen::Quaterniond * rotation);

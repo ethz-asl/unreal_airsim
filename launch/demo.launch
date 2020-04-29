@@ -1,10 +1,15 @@
 <launch>
   <!-- Arguments -->
   <arg name="config" default="$(find unreal_airsim)/cfg/demo.yaml"/>
+  <arg name="use_airsim_time" default="true"/>
   
   
-  <!-- Run the Simulation -->
-  <!-- static camera transform -->
+  <!-- *** Run the Simulation *** -->
+  
+  <!-- use wsimulated time -->
+  <param name="use_sim_time" value="true" if="$(arg use_airsim_time)"/>
+  
+  <!-- static world transform -->
   <node pkg="tf" type="static_transform_publisher" name="tf_odom_to_world" args="0 0 0 0 0 0 1 /world /odom 100"/>  
 
   <!-- airsim client -->
