@@ -8,6 +8,8 @@ This repo contains simulation tools and utilities to perform realistic simulatio
 * [Troubleshooting](#Troubleshooting)
 
 **Documentation:**
+* [Settings](docs/settings.md)
+* [Coordinate Systems](docs/coordinate_systems.md)
 * [Getting UE4 Assets](docs/download_ue4_assets.md)
 
 # Installation
