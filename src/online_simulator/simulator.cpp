@@ -376,6 +376,7 @@ void AirsimSimulator::readSimTimeCallback(){
    * TODO(schmluk): make this nice.
    * This is currently a work-around as getting only the time stamp is not yet exposed. However, this call does not run
    * on the game thread afaik and was not measured to slow down other tasks.
+   * Although this querries sim time via a RPC call, it can run at ~4000 Hz so delay should be >1 ms.
    */
   uint64_t ts =  airsim_time_client_.getMultirotorState(config_.vehicle_name).timestamp;
   rosgraph_msgs::Clock msg;

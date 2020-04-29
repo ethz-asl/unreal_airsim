@@ -33,7 +33,8 @@ class AirsimSimulator {
   struct Config {
     // general settings
     double state_refresh_rate = 100;  // hz
-    int time_publisher_interval = 2; // ms, this is the interval in wall-time in which sim_time is published, i.e. 500 Hz
+    int time_publisher_interval = 2;  // ms, this is the interval (in wall-time) in which the airsim time is published
+                                      // as sim_time, i.e. 500 Hz. This only happens if use_sim_time=true during launch.
     std::string simulator_frame_name = "odom";
 
     // vehicle (the multirotor)
