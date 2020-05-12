@@ -3,6 +3,7 @@ Unreal Engine, AirSim, and unreal_airsim all use different coordinate systems an
 These systems and conventions as well as conversions are thus briefly introduced.
 
 ![frames](https://user-images.githubusercontent.com/36043993/80600107-345e2280-8a2c-11ea-93eb-725172b85ca2.png)
+(Corrigendum: unreal_airsim uses x-forward, y-left, z-up)
 
 ## Unreal Engine
 UE4 uses standard xyz-coordinates, although the coordinate system is **not** right-handed (i.e. x-forward, y-right, z-up).
@@ -31,6 +32,6 @@ This convention is used for everything interfacing with AirSim, such as client r
 ## unreal_airsim
 Unreal_airsim uses the [ASL coordinate conventions](https://github.com/ethz-asl/mav_tools/wiki/Coordinate-Systems), i.e. all coordinate systems are right handed (x-forward, y-left, z-up).
 The simulator frame is aligned with `AirsimLocal`, including the orientation of PlayerStart, thus coinciding fully with PlayerStart (odom frame) (ideally, as soon as above note is fixed).
-Note that cameras operate in camera frame (x-left, y-down, z-depth).
+Note that cameras operate in camera frame (x-right, y-down, z-depth).
 
 Use this convention for everything that interfaces with the unreal_airsim simulator, e.g. published and subscribed topics, as well as in the unreal_airsim_settings.yaml.
