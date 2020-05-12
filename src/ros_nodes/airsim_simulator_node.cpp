@@ -30,7 +30,8 @@ int main(int argc, char **argv) {
 
   int n_threads;
   nh_private.param("n_threads", n_threads, 0);  // 0 defaults to #physical cores
-  ros::MultiThreadedSpinner spinner(n_threads);
-  spinner.spin();
+  ros::AsyncSpinner spinner(n_threads);
+  spinner.start();
+  ros::waitForShutdown();
   return 0;
 }
