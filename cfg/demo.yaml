@@ -51,11 +51,11 @@ sensors:
   Lidar:
     sensor_type: Lidar
     rate: 3
-    T_B_S:  # Transformation to the sensor link in body-frame (0 yaw, 30pitch, 0 roll)
-      - [0.8660254,   0.0000000,  -0.5000000, 0]
-      - [0.0000000,   1.0000000,  0.0000000,  0]
-      - [0.5000000,   0.0000000,  0.8660254,  0]
-      - [0,           0,          0,          1]
+    T_B_S:  # Transformation to the sensor link in body-frame (0 yaw, 30 pitch, 0 roll)
+      - [0.8660254,   0.0000000,  0.5000000, 0]
+      - [0.0000000,   1.0000000,  0.0000000, 0]
+      - [-0.5000000,  0.0000000,  0.8660254, 0]
+      - [0,           0,          0,         1]
     NumberOfChannels: 16
     PointsPerSecond: 100000
     RotationsPerSecond: 10
@@ -65,3 +65,10 @@ sensors:
   Imu:
     sensor_type: Imu
     rate: 100
+    
+# Post processing of simulation data can be added in a modular way    
+processors:
+  RGBD_cam:
+    processor_type: DepthToPointcloud
+    depth_camera_name: Depth_cam
+    color_camera_name: Scene_cam

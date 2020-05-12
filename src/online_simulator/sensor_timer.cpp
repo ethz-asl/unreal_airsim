@@ -42,12 +42,8 @@ void SensorTimer::timerCallback(const ros::TimerEvent &) {
   processImus();
 }
 
-void SensorTimer::addSensor(const AirsimSimulator *simulator) {
-  AirsimSimulator::Config::Sensor* sensor = simulator->getConfig().sensor_to_add;
-  if (!sensor){
-    LOG(WARNING) << "Could not add sensor to SensorTimer: 'sensor_to_add' was nullptr.";
-    return;
-  }
+void SensorTimer::addSensor(const AirsimSimulator &simulator, int sensor_index) {
+  AirsimSimulator::Config::Sensor* sensor = simulator.getConfig().sensors[sensor_index].get();
   if (sensor->sensor_type == AirsimSimulator::Config::Sensor::TYPE_CAMERA) {
     auto camera = (AirsimSimulator::Config::Camera *) sensor;
     camera_pubs_.push_back(nh_.advertise<sensor_msgs::Image>(camera->output_topic, 5));

@@ -8,7 +8,7 @@ This repo contains simulation tools and utilities to perform realistic simulatio
 * [Troubleshooting](#Troubleshooting)
 
 **Documentation:**
-* coming soon
+* [Getting UE4 Assets](docs/download_ue4_assets.md)
 
 # Installation
 The following 3 components are necessary to utilize the full stack of unreal_airsim tools.
@@ -98,6 +98,13 @@ External view of the UE4 game (left), camera image (center) and lidar readings (
     ```shell script
      ln -s /usr/include/locale.h /usr/include/xlocale.h
     ```
+  
+## Running Unreal Engine
+* **The UE Editor freezes when 'Compiling Shaders':**
+
+    According to [this thread](https://answers.unrealengine.com/questions/936174/view.html) this may happen when using Vulcan with less than 2GB of graphics card memory. 
+    Can be adjusted by switching back to OpenGL (uncomment `TargetedRHIs=GLSL_430` in `Engine/Config/BaseEngine.ini`). 
+
 ## Starting the simulation
 * **Error at startup: bind(): address already in use:**
 

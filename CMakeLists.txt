@@ -38,6 +38,8 @@ cs_add_library(${PROJECT_NAME}
         src/frame_converter.cpp
         src/online_simulator/simulator.cpp
         src/online_simulator/sensor_timer.cpp
+        src/simulator_processing/processor_factory.cpp
+        src/simulator_processing/depth_to_pointcloud.cpp
         )
 
 ###############
@@ -47,10 +49,5 @@ cs_add_executable(airsim_simulator_node
         src/ros_nodes/airsim_simulator_node.cpp
         )
 target_link_libraries(airsim_simulator_node ${PROJECT_NAME} ${catkin_LIBRARIES} AirLib ${RPC_LIB})
-
-#cs_add_executable(fly_around_node
-#        src/fly_around_node.cpp
-#        )
-#target_link_libraries(fly_around_node ${catkin_LIBRARIES})
 
 

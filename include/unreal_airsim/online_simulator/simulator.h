@@ -3,6 +3,7 @@
 
 #include "unreal_airsim/frame_converter.h"
 #include "unreal_airsim/online_simulator/sensor_timer.h"
+#include "unreal_airsim/simulator_processing/processor_base.h"
 
 // ROS
 #include <ros/ros.h>
@@ -10,14 +11,14 @@
 #include <tf2_ros/static_transform_broadcaster.h>
 
 // Airsim
-#include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
+#include <vehicles/multirotor/api/MultirotorRpcLibClient.hpp>
+#include <common/CommonStructs.hpp>
 
 #include <string>
 #include <memory>
 
 
 namespace unreal_airsim {
-class SensorTimer;
 /***
  * This class implements a simulation interface with airsim.
  * Current application case is for a single Multirotor Vehicle.
@@ -56,9 +57,9 @@ class AirsimSimulator {
       std::string image_type_str = "Scene";
       bool pixels_as_float = false;
       msr::airlib::ImageCaptureBase::ImageType image_type = msr::airlib::ImageCaptureBase::ImageType::Scene;
+      msr::airlib::CameraInfo camera_info;   // The info is read from UE4
     };
     std::vector<std::unique_ptr<Sensor>> sensors;
-    Sensor* sensor_to_add = nullptr;  // this is read when passed to a sensor timer
   };
 
   AirsimSimulator(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private);
@@ -92,7 +93,10 @@ class AirsimSimulator {
   ros::Subscriber command_pose_sub_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::StaticTransformBroadcaster static_tf_broadcaster_;
+
+  // components
   std::vector<std::unique_ptr<SensorTimer>> sensor_timers_;   // These manage the actual sensor reading/publishing
+  std::vector<std::unique_ptr<simulator_processor::ProcessorBase>> processors_;   // Various post-processing
 
   // Airsim clients (These can be blocking and thus slowing down tasks if only one is used)
   msr::airlib::MultirotorRpcLibClient airsim_state_client_;

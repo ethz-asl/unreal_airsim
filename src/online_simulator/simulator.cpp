@@ -1,5 +1,5 @@
 #include "unreal_airsim/online_simulator/simulator.h"
-#include "unreal_airsim/online_simulator/sensor_timer.h"
+#include "unreal_airsim/simulator_processing/processor_factory.h"
 
 STRICT_MODE_OFF
 #ifndef RPCLIB_MSGPACK
@@ -104,10 +104,10 @@ bool AirsimSimulator::readParamsFromRos() {
       nh_private_.param(sensor_ns + name + "/pixels_as_float", cfg->pixels_as_float, cfg->pixels_as_float);
       // cam types default to visual (Scene) camera, but make sure if something else is intended a warning is thrown
       std::string read_img_type_default = "Param is not string";
-      if (!nh_private_.hasParam(sensor_ns + name + "/ImageType")) {
+      if (!nh_private_.hasParam(sensor_ns + name + "/image_type")) {
         read_img_type_default = cam_defaults.image_type_str;
       }
-      nh_private_.param(sensor_ns + name + "/ImageType", cfg->image_type_str, read_img_type_default);
+      nh_private_.param(sensor_ns + name + "/image_type", cfg->image_type_str, read_img_type_default);
       if (cfg->image_type_str == "Scene") {
         cfg->image_type = msr::airlib::ImageCaptureBase::ImageType::Scene;
       } else if (cfg->image_type_str == "DepthPerspective") {
@@ -218,12 +218,12 @@ bool AirsimSimulator::setupROS() {
   command_pose_sub_ = nh_.subscribe(config_.vehicle_name + "/command/pose", 5, &AirsimSimulator::commandPoseCallback, this);
 
   // sensors
-  for (auto const &sensor: config_.sensors) {
+  for (size_t i=0; i<config_.sensors.size(); ++i) {
     // Find or allocate the sensor timer
     SensorTimer *timer = nullptr;
-    if (!sensor->force_separate_timer) {
+    if (!config_.sensors[i]->force_separate_timer) {
       for (const auto &t : sensor_timers_) {
-        if (!t->isPrivate() && t->getRate() == sensor->rate) {
+        if (!t->isPrivate() && t->getRate() == config_.sensors[i]->rate) {
           timer = t.get();
           break;
         }
@@ -231,32 +231,66 @@ bool AirsimSimulator::setupROS() {
     }
     if (timer == nullptr) {
       sensor_timers_.push_back(std::make_unique<SensorTimer>(nh_,
-                                                             sensor->rate,
-                                                             sensor->force_separate_timer,
+                                                             config_.sensors[i]->rate,
+                                                             config_.sensors[i]->force_separate_timer,
                                                              config_.vehicle_name,
                                                              frame_converter_));
       timer = sensor_timers_.back().get();
     }
-    config_.sensor_to_add = sensor.get();
-    timer->addSensor(this);
+    timer->addSensor(*this, i);
     // Sensor transform broadcast
     geometry_msgs::TransformStamped static_transformStamped;
-    Eigen::Quaterniond rotation = sensor->rotation;
-    if (sensor->sensor_type == Config::Sensor::TYPE_CAMERA){
+    Eigen::Quaterniond rotation = config_.sensors[i]->rotation;
+    if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA){
       // Camera frames are x right, y down, z depth
       rotation = Eigen::Quaterniond(0.5,-0.5, 0.5, -0.5) * rotation;
+      auto camera = (Config::Camera*)config_.sensors[i].get();
+      // This assumes the camera exists, which should always be the case with the auto-generated-config.
+      camera->camera_info = airsim_move_client_.simGetCameraInfo(camera->name, config_.vehicle_name);
+      // TODO(Schmluk): Might want to also publish the camera info or convert to intrinsics etc
     }
     static_transformStamped.header.stamp = ros::Time::now();
     static_transformStamped.header.frame_id = config_.vehicle_name;
-    static_transformStamped.child_frame_id = sensor->frame_name;
-    static_transformStamped.transform.translation.x = sensor->translation.x();
-    static_transformStamped.transform.translation.y =  sensor->translation.y();
-    static_transformStamped.transform.translation.z = sensor->translation.z();
+    static_transformStamped.child_frame_id = config_.sensors[i]->frame_name;
+    static_transformStamped.transform.translation.x = config_.sensors[i]->translation.x();
+    static_transformStamped.transform.translation.y =  config_.sensors[i]->translation.y();
+    static_transformStamped.transform.translation.z = config_.sensors[i]->translation.z();
     static_transformStamped.transform.rotation.x =  rotation.x();
     static_transformStamped.transform.rotation.y = rotation.y();
     static_transformStamped.transform.rotation.z = rotation.z();
     static_transformStamped.transform.rotation.w = rotation.w();
     static_tf_broadcaster_.sendTransform(static_transformStamped);
+  }
+
+  // Simulator processors (find names and let them create themselves)
+  std::vector<std::string> keys;
+  nh_private_.getParamNames(keys);
+  std::string proc_ns = "processors/";
+  std::string full_ns = nh_private_.getNamespace() + "/" + proc_ns;
+  std::string proc_name;
+  std::vector<std::string> processors;
+  size_t pos;
+  for (auto const &key: keys) {
+    if ((pos = key.find(full_ns)) != std::string::npos) {
+      proc_name = key;
+      proc_name.erase(0, pos + full_ns.length());
+      pos = proc_name.find('/');
+      if (pos != std::string::npos) {
+        proc_name = proc_name.substr(0, pos);
+      }
+      if (std::find(processors.begin(), processors.end(), proc_name) == processors.end()) {
+        processors.push_back(proc_name);
+      }
+    }
+  }
+  for (auto const &name: processors){
+    if (!nh_private_.hasParam(full_ns + name + "/processor_type")){
+      LOG(ERROR) << "Sensor processor '" << name << "' does not name a 'processor_type' and will be ignored.";
+      continue;
+    }
+    std::string type;
+    nh_private_.getParam(full_ns + name + "/processor_type", type);
+    processors_.push_back(simulator_processor::ProcessorFactory::createFromRos(name, type, nh_, full_ns + name + "/", this));
   }
   return true;
 }
