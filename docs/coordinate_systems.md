@@ -2,8 +2,7 @@
 Unreal Engine, AirSim, and unreal_airsim all use different coordinate systems and parametrization conventions. 
 These systems and conventions as well as conversions are thus briefly introduced.
 
-![frames](https://user-images.githubusercontent.com/36043993/80600107-345e2280-8a2c-11ea-93eb-725172b85ca2.png)
-(Corrigendum: unreal_airsim uses x-forward, y-left, z-up)
+![frames](https://user-images.githubusercontent.com/36043993/81938412-2811c200-95f5-11ea-8a80-5c95efa48a88.png)
 
 ## Unreal Engine
 UE4 uses standard xyz-coordinates, although the coordinate system is **not** right-handed (i.e. x-forward, y-right, z-up).
