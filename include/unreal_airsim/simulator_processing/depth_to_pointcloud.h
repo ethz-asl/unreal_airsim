@@ -48,6 +48,7 @@ class DepthToPointcloud : public ProcessorBase {
   float focal_length_;
   float vx_;
   float vy_;
+  float max_depth_; // points beyond this depth [m] will be discarded
 
   // methods
   void publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr, const sensor_msgs::ImagePtr &color_ptr);
