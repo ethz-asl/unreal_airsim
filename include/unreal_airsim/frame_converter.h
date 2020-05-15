@@ -21,10 +21,14 @@ class FrameConverter {
   FrameConverter();
   virtual ~FrameConverter() = default;
 
-  // setup
+  // setup, these take the rotation of the airsim to the ros in ros frame as input
   void reset();
   void setupFromYaw(double yaw);  // rad
   void setupFromQuat(const Eigen::Quaterniond &quat);
+
+  // accessors
+  const Eigen::Matrix3d& getRotation() const { return rotation_; }
+  const Eigen::Matrix3d& getRotationInverse() const { return rot_inverse_; }
 
   // interfaces
   void airsimToRos(geometry_msgs::Vector3* point) const;
@@ -37,7 +41,7 @@ class FrameConverter {
 
   void rosToAirsim(Eigen::Vector3d* point) const;
   void rosToAirsim(geometry_msgs::Point* point) const;
-  void rosToAirsim(Eigen::Quaterniond *point) const;
+  void rosToAirsim(Eigen::Quaterniond *orientation) const;
   void rosToAirsim(geometry_msgs::Quaternion* orientation) const;
   void rosToAirsim(geometry_msgs::Pose* pose) const;
 
