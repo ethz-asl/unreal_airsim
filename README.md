@@ -58,7 +58,7 @@ This repo was developed on a desktop-full version of [ROS melodic](http://wiki.r
 * Install via [SSH](https://help.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh):
     ```shell script
     cd ~/catkin_ws/src
-    git clone git@github.com:ethz-asl/unreal_airsim.git
+    git clone git@github.com:ethz-asl/AirSim.git
     wstool init . ./unreal_airsim/unreal_airsim_ssh.rosinstall
     wstool update
     ```
