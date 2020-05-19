@@ -26,6 +26,7 @@ bool DepthToPointcloud::setupFromRos(const ros::NodeHandle &nh, const std::strin
     return false;
   }
   nh.getParam(ns + "depth_camera_name", depth_camera_name);
+  nh.param(ns + "max_depth", max_depth_, 1e6f);
   nh.param(ns + "output_topic", output_topic, parent_->getConfig().vehicle_name + "/" + name_);
   if (nh.hasParam(ns + "color_camera_name")) {
     nh.getParam(ns + "color_camera_name", color_camera_name);
@@ -153,6 +154,9 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
   for (int y = 0; y < depth_img->image.rows; y++) {
     for (int x = 0; x < depth_img->image.cols; x++) {
       float z = depth_img->image.at<float>(y, x);   // This assumes we use planar depth camera (ImageType::DepthPlanner)
+      if (z > max_depth_) {
+        continue;
+      }
       out_x[0] = ((float)x - vx_) * z / focal_length_;
       out_x[1] = ((float)y - vy_) * z / focal_length_;
       out_x[2] = z;
