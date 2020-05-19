@@ -335,13 +335,11 @@ void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose& msg){
   // Input pose is in simulator (odom) frame, use position + yaw as setpoint
   auto pos = Eigen::Vector3d(msg.position.x, msg.position.y, msg.position.z);
   auto ori = Eigen::Quaterniond(msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z);
-  double t1 = tf2::getYaw(tf2::Quaternion(ori.x(), ori.y(), ori.z(), ori.w())) / M_PI * 180.0;
   frame_converter_.rosToAirsim(&pos);
   ori = frame_converter_.getRotation() * ori;    // Need to rotate to airsim frame but keep in standard convention
   double yaw = tf2::getYaw(tf2::Quaternion(ori.x(), ori.y(), ori.z(), ori.w()));    // Eigen's eulerAngles apparently
   // messes up some wrap arounds or direcions and gets the wrong yaws in some cases!!!
   yaw = yaw / M_PI * 180.0;
-  std::cout << "x: " << pos[0] << ", y: " << pos.y() << ", z: " << pos.z() << ", yaw: " << t1 << ", " << yaw << std::endl;
   auto yaw_mode = msr::airlib::YawMode(false, yaw);
   airsim_move_client_.moveToPositionAsync(pos.x(), pos.y(), pos.z(), config_.velocity, 3600,
       config_.drive_train_type, yaw_mode, -1, 1, config_.vehicle_name);
