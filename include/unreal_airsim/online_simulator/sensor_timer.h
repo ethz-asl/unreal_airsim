@@ -5,6 +5,7 @@
 
 // ROS
 #include <ros/ros.h>
+#include <tf2_ros/transform_broadcaster.h>
 
 // Airsim
 #include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
@@ -44,6 +45,7 @@ class SensorTimer {
   ros::Timer timer_;
   std::string vehicle_name_;
   ros::NodeHandle nh_;
+  tf2_ros::TransformBroadcaster tf_broadcaster_;
 
   // methods
   void processCameras();
