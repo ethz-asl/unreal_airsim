@@ -61,6 +61,7 @@ bool AirsimSimulator::readParamsFromRos() {
   nh_private_.param("simulator_frame_name", config_.simulator_frame_name, defaults.simulator_frame_name);
   nh_private_.param("vehicle_name", config_.vehicle_name, defaults.vehicle_name);
   nh_private_.param("velocity", config_.velocity, defaults.velocity);
+  nh_private_.param("publish_sensor_transforms", config_.publish_sensor_transforms, defaults.publish_sensor_transforms);
 
   // Verify params valid
   if (config_.state_refresh_rate <= 0.0) {
@@ -263,17 +264,19 @@ bool AirsimSimulator::setupROS() {
       camera->camera_info = airsim_move_client_.simGetCameraInfo(camera->name, config_.vehicle_name);
       // TODO(Schmluk): Might want to also publish the camera info or convert to intrinsics etc
     }
-    static_transformStamped.header.stamp = ros::Time::now();
-    static_transformStamped.header.frame_id = config_.vehicle_name;
-    static_transformStamped.child_frame_id = config_.sensors[i]->frame_name;
-    static_transformStamped.transform.translation.x = config_.sensors[i]->translation.x();
-    static_transformStamped.transform.translation.y = config_.sensors[i]->translation.y();
-    static_transformStamped.transform.translation.z = config_.sensors[i]->translation.z();
-    static_transformStamped.transform.rotation.x = rotation.x();
-    static_transformStamped.transform.rotation.y = rotation.y();
-    static_transformStamped.transform.rotation.z = rotation.z();
-    static_transformStamped.transform.rotation.w = rotation.w();
-    static_tf_broadcaster_.sendTransform(static_transformStamped);
+    if (!config_.publish_sensor_transforms) {
+      static_transformStamped.header.stamp = ros::Time::now();
+      static_transformStamped.header.frame_id = config_.vehicle_name;
+      static_transformStamped.child_frame_id = config_.sensors[i]->frame_name;
+      static_transformStamped.transform.translation.x = config_.sensors[i]->translation.x();
+      static_transformStamped.transform.translation.y = config_.sensors[i]->translation.y();
+      static_transformStamped.transform.translation.z = config_.sensors[i]->translation.z();
+      static_transformStamped.transform.rotation.x = rotation.x();
+      static_transformStamped.transform.rotation.y = rotation.y();
+      static_transformStamped.transform.rotation.z = rotation.z();
+      static_transformStamped.transform.rotation.w = rotation.w();
+      static_tf_broadcaster_.sendTransform(static_transformStamped);
+    }
   }
 
   // Simulator processors (find names and let them create themselves)

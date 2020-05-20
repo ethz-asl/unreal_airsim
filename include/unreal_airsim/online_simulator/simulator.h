@@ -43,6 +43,7 @@ class AirsimSimulator {
     msr::airlib::DrivetrainType drive_train_type = msr::airlib::DrivetrainType::MaxDegreeOfFreedom; // this is currently fixed
 
     // sensors
+    bool publish_sensor_transforms = true;   // true: use gt transforms, false: use static mounting transform
     struct Sensor{
       inline static const std::string TYPE_CAMERA = "Camera";
       inline static const std::string TYPE_LIDAR = "Lidar";
