@@ -344,9 +344,9 @@ void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose &msg) {
   // Input pose is in simulator (odom) frame, use position + yaw as setpoint
   auto pos = Eigen::Vector3d(msg.position.x, msg.position.y, msg.position.z);
   auto ori = Eigen::Quaterniond(msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z);
-  ori = frame_converter_.getRotation() * ori;    // Need to rotate to airsim frame but keep in standard convention
+  frame_converter_.rosToAirsim(&ori);
   double yaw = tf2::getYaw(tf2::Quaternion(ori.x(), ori.y(), ori.z(), ori.w()));    // Eigen's eulerAngles apparently
-  // messes up some wrap arounds or direcions and gets the wrong yaws in some cases!!!
+  // messes up some wrap arounds or direcions and gets the wrong yaws in some cases
   yaw = yaw / M_PI * 180.0;
   const double kMinMovingDistance = 0.1;    // m
   if ((pos - current_position_).norm() >= kMinMovingDistance) {
@@ -357,7 +357,7 @@ void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose &msg) {
   } else {
     // This second command catches the case if the total distance is too small, where the moveToPosition command returns
     // without satisfying the yaw. If this is always run then apparently sometimes the move command is overwritten.
-    airsim_move_client_.rotateToYawAsync(yaw, 3600, 1, config_.vehicle_name);
+    airsim_move_client_.rotateToYawAsync(yaw, 3600, 5, config_.vehicle_name);
   }
 }
 
@@ -399,7 +399,7 @@ void AirsimSimulator::readSimTimeCallback() {
    * TODO(schmluk): make this nice.
    * This is currently a work-around as getting only the time stamp is not yet exposed. However, this call does not run
    * on the game thread afaik and was not measured to slow down other tasks.
-   * Although this querries sim time via a RPC call, it can run at ~4000 Hz so delay should be >1 ms.
+   * Although this queries sim time via RPC call, it can run at ~4000 Hz so delay should be <1 ms.
    */
   uint64_t ts = airsim_time_client_.getMultirotorState(config_.vehicle_name).timestamp;
   rosgraph_msgs::Clock msg;
