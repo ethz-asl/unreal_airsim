@@ -89,6 +89,31 @@ void SensorTimer::processCameras() {
         }
         msg->header.stamp = timestamp;
         msg->header.frame_id = camera_frame_names_[i];
+
+        // Ground truth transform
+        if (parent_->getConfig().publish_sensor_transforms) {
+          auto rotation = Eigen::Quaterniond(responses[i].camera_orientation.w(),
+                                             responses[i].camera_orientation.x(),
+                                             responses[i].camera_orientation.y(),
+                                             responses[i].camera_orientation.z());
+          parent_->getFrameConverter().airsimToRos(&(rotation));
+          // Camera frames are x right, y down, z depth
+          rotation = rotation * Eigen::Quaterniond(0.5, -0.5, 0.5, -0.5);
+          geometry_msgs::TransformStamped transformStamped;
+          transformStamped.header.stamp = timestamp;
+          transformStamped.header.frame_id = parent_->getConfig().simulator_frame_name;
+          transformStamped.child_frame_id = camera_frame_names_[i];
+          transformStamped.transform.translation.x = responses[i].camera_position[0];
+          transformStamped.transform.translation.y = responses[i].camera_position[1];
+          transformStamped.transform.translation.z = responses[i].camera_position[2];
+          transformStamped.transform.rotation.x = rotation.x();
+          transformStamped.transform.rotation.y = rotation.y();
+          transformStamped.transform.rotation.z = rotation.z();
+          transformStamped.transform.rotation.w = rotation.w();
+          parent_->getFrameConverter().airsimToRos(&(transformStamped.transform.translation));
+          tf_broadcaster_.sendTransform(transformStamped);
+        }
+
         camera_pubs_[i].publish(msg);
       }
     }
@@ -127,6 +152,24 @@ void SensorTimer::processLidars() {
     auto bytes = reinterpret_cast<const unsigned char *>(&data_std[0]);
     vector<unsigned char> lidar_msg_data(bytes, bytes + sizeof(float) * data_std.size());
     msg->data = std::move(lidar_msg_data);
+
+    // Ground truth transform
+    if (parent_->getConfig().publish_sensor_transforms) {
+      geometry_msgs::TransformStamped transformStamped;
+      transformStamped.header.stamp = msg->header.stamp;
+      transformStamped.header.frame_id = lidar_frame_names_[i];
+      transformStamped.child_frame_id = parent_->getConfig().simulator_frame_name;
+      transformStamped.transform.translation.x = lidar_data.pose.position[0];
+      transformStamped.transform.translation.y = lidar_data.pose.position[1];
+      transformStamped.transform.translation.z = lidar_data.pose.position[2];
+      transformStamped.transform.rotation.x = lidar_data.pose.orientation.x();
+      transformStamped.transform.rotation.y = lidar_data.pose.orientation.y();
+      transformStamped.transform.rotation.z = lidar_data.pose.orientation.z();
+      transformStamped.transform.rotation.w = lidar_data.pose.orientation.w();
+      parent_->getFrameConverter().airsimToRos(&(transformStamped.transform));
+      tf_broadcaster_.sendTransform(transformStamped);
+    }
+
     lidar_pubs_[i].publish(msg);
   }
 }
@@ -157,6 +200,7 @@ void SensorTimer::processImus() {
     // imu_msg.orientation_covariance = ;
     // imu_msg.angular_velocity_covariance = ;
     // imu_msg.linear_acceleration_covariance = ;
+
     imu_pubs_[i].publish(msg);
   }
 }

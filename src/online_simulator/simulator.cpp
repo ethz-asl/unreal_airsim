@@ -6,7 +6,7 @@ STRICT_MODE_OFF
 #define RPCLIB_MSGPACK clmdep_msgpack
 #endif // !RPCLIB_MSGPACK
 #include "rpc/rpc_error.h"
-STRICT_MODE_ON
+    STRICT_MODE_ON
 
 #include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/Odometry.h>
@@ -22,7 +22,6 @@ STRICT_MODE_ON
 #include <csignal>
 #include <thread>
 #include <functional>
-
 
 namespace unreal_airsim {
 
@@ -62,6 +61,7 @@ bool AirsimSimulator::readParamsFromRos() {
   nh_private_.param("simulator_frame_name", config_.simulator_frame_name, defaults.simulator_frame_name);
   nh_private_.param("vehicle_name", config_.vehicle_name, defaults.vehicle_name);
   nh_private_.param("velocity", config_.velocity, defaults.velocity);
+  nh_private_.param("publish_sensor_transforms", config_.publish_sensor_transforms, defaults.publish_sensor_transforms);
 
   // Verify params valid
   if (config_.state_refresh_rate <= 0.0) {
@@ -157,7 +157,7 @@ bool AirsimSimulator::readParamsFromRos() {
     sensor_cfg->name = name;
     sensor_cfg->sensor_type = sensor_type;
     nh_private_.param(sensor_ns + name + "/output_topic", sensor_cfg->output_topic, config_.vehicle_name + "/" + name);
-    nh_private_.param(sensor_ns + name + "/frame_name", sensor_cfg->frame_name, config_.vehicle_name + "_" + name);
+    nh_private_.param(sensor_ns + name + "/frame_name", sensor_cfg->frame_name, config_.vehicle_name + "/" + name);
     nh_private_.param(sensor_ns + name + "/force_separate_timer",
                       sensor_cfg->force_separate_timer,
                       sensor_cfg->force_separate_timer);
@@ -224,15 +224,16 @@ bool AirsimSimulator::setupROS() {
   pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>(config_.vehicle_name + "/ground_truth/pose", 5);
   collision_pub_ = nh_.advertise<std_msgs::Bool>(config_.vehicle_name + "/collision", 1);
   sim_is_ready_pub_ = nh_.advertise<std_msgs::Bool>("simulation_is_ready", 1);
-  if (use_sim_time_){
+  if (use_sim_time_) {
     time_pub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", 50);
   }
 
   // control interfaces
-  command_pose_sub_ = nh_.subscribe(config_.vehicle_name + "/command/pose", 5, &AirsimSimulator::commandPoseCallback, this);
+  command_pose_sub_ =
+      nh_.subscribe(config_.vehicle_name + "/command/pose", 10, &AirsimSimulator::commandPoseCallback, this);
 
   // sensors
-  for (size_t i=0; i<config_.sensors.size(); ++i) {
+  for (size_t i = 0; i < config_.sensors.size(); ++i) {
     // Find or allocate the sensor timer
     SensorTimer *timer = nullptr;
     if (!config_.sensors[i]->force_separate_timer) {
@@ -255,25 +256,27 @@ bool AirsimSimulator::setupROS() {
     // Sensor transform broadcast
     geometry_msgs::TransformStamped static_transformStamped;
     Eigen::Quaterniond rotation = config_.sensors[i]->rotation;
-    if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA){
+    if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA) {
       // Camera frames are x right, y down, z depth
-      rotation = Eigen::Quaterniond(0.5,-0.5, 0.5, -0.5) * rotation;
-      auto camera = (Config::Camera*)config_.sensors[i].get();
+      rotation = Eigen::Quaterniond(0.5, -0.5, 0.5, -0.5) * rotation;
+      auto camera = (Config::Camera *) config_.sensors[i].get();
       // This assumes the camera exists, which should always be the case with the auto-generated-config.
       camera->camera_info = airsim_move_client_.simGetCameraInfo(camera->name, config_.vehicle_name);
       // TODO(Schmluk): Might want to also publish the camera info or convert to intrinsics etc
     }
-    static_transformStamped.header.stamp = ros::Time::now();
-    static_transformStamped.header.frame_id = config_.vehicle_name;
-    static_transformStamped.child_frame_id = config_.sensors[i]->frame_name;
-    static_transformStamped.transform.translation.x = config_.sensors[i]->translation.x();
-    static_transformStamped.transform.translation.y =  config_.sensors[i]->translation.y();
-    static_transformStamped.transform.translation.z = config_.sensors[i]->translation.z();
-    static_transformStamped.transform.rotation.x =  rotation.x();
-    static_transformStamped.transform.rotation.y = rotation.y();
-    static_transformStamped.transform.rotation.z = rotation.z();
-    static_transformStamped.transform.rotation.w = rotation.w();
-    static_tf_broadcaster_.sendTransform(static_transformStamped);
+    if (!config_.publish_sensor_transforms) {
+      static_transformStamped.header.stamp = ros::Time::now();
+      static_transformStamped.header.frame_id = config_.vehicle_name;
+      static_transformStamped.child_frame_id = config_.sensors[i]->frame_name;
+      static_transformStamped.transform.translation.x = config_.sensors[i]->translation.x();
+      static_transformStamped.transform.translation.y = config_.sensors[i]->translation.y();
+      static_transformStamped.transform.translation.z = config_.sensors[i]->translation.z();
+      static_transformStamped.transform.rotation.x = rotation.x();
+      static_transformStamped.transform.rotation.y = rotation.y();
+      static_transformStamped.transform.rotation.z = rotation.z();
+      static_transformStamped.transform.rotation.w = rotation.w();
+      static_tf_broadcaster_.sendTransform(static_transformStamped);
+    }
   }
 
   // Simulator processors (find names and let them create themselves)
@@ -297,14 +300,18 @@ bool AirsimSimulator::setupROS() {
       }
     }
   }
-  for (auto const &name: processors){
-    if (!nh_private_.hasParam(full_ns + name + "/processor_type")){
+  for (auto const &name: processors) {
+    if (!nh_private_.hasParam(full_ns + name + "/processor_type")) {
       LOG(ERROR) << "Sensor processor '" << name << "' does not name a 'processor_type' and will be ignored.";
       continue;
     }
     std::string type;
     nh_private_.getParam(full_ns + name + "/processor_type", type);
-    processors_.push_back(simulator_processor::ProcessorFactory::createFromRos(name, type, nh_, full_ns + name + "/", this));
+    processors_.push_back(simulator_processor::ProcessorFactory::createFromRos(name,
+                                                                               type,
+                                                                               nh_,
+                                                                               full_ns + name + "/",
+                                                                               this));
   }
   return true;
 }
@@ -330,27 +337,33 @@ bool AirsimSimulator::initializeSimulationFrame() {
   return true;
 }
 
-void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose& msg){
-  if (!is_running_) { return; }
+void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose &msg) {
+  if (!is_running_) {
+    return;
+  }
   // Input pose is in simulator (odom) frame, use position + yaw as setpoint
   auto pos = Eigen::Vector3d(msg.position.x, msg.position.y, msg.position.z);
   auto ori = Eigen::Quaterniond(msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z);
-  frame_converter_.rosToAirsim(&pos);
-  ori = frame_converter_.getRotation() * ori;    // Need to rotate to airsim frame but keep in standard convention
+  frame_converter_.rosToAirsim(&ori);
   double yaw = tf2::getYaw(tf2::Quaternion(ori.x(), ori.y(), ori.z(), ori.w()));    // Eigen's eulerAngles apparently
-  // messes up some wrap arounds or direcions and gets the wrong yaws in some cases!!!
+  // messes up some wrap arounds or direcions and gets the wrong yaws in some cases
   yaw = yaw / M_PI * 180.0;
-  auto yaw_mode = msr::airlib::YawMode(false, yaw);
-  airsim_move_client_.moveToPositionAsync(pos.x(), pos.y(), pos.z(), config_.velocity, 3600,
-      config_.drive_train_type, yaw_mode, -1, 1, config_.vehicle_name);
-  // This second command catches the case if the total distance is to small, where the moveToPosition command returns
-  // without satisfying the yaw.
-  airsim_move_client_.rotateToYawAsync(yaw, 3600, 1, config_.vehicle_name);
-
+  const double kMinMovingDistance = 0.1;    // m
+  if ((pos - current_position_).norm() >= kMinMovingDistance) {
+    frame_converter_.rosToAirsim(&pos);
+    auto yaw_mode = msr::airlib::YawMode(false, yaw);
+    airsim_move_client_.moveToPositionAsync(pos.x(), pos.y(), pos.z(), config_.velocity, 3600,
+                                            config_.drive_train_type, yaw_mode, -1, 1, config_.vehicle_name);
+  } else {
+    // This second command catches the case if the total distance is too small, where the moveToPosition command returns
+    // without satisfying the yaw. If this is always run then apparently sometimes the move command is overwritten.
+    airsim_move_client_.rotateToYawAsync(yaw, 3600, 5, config_.vehicle_name);
+  }
 }
 
 void AirsimSimulator::startupCallback(const ros::TimerEvent &) {
   // Startup the drone, this should set the MAV hovering at 'PlayerStart' in unreal
+  startup_timer_.stop();
   airsim_move_client_.enableApiControl(true);  // Also disables user control, which is good
   airsim_move_client_.armDisarm(true);
   airsim_move_client_.takeoffAsync(2)->waitOnLastTask();
@@ -360,7 +373,6 @@ void AirsimSimulator::startupCallback(const ros::TimerEvent &) {
   msg.data = true;
   sim_is_ready_pub_.publish(msg);
   LOG(INFO) << "Airsim simulation is ready!";
-  startup_timer_.stop();
 }
 
 bool AirsimSimulator::startSimTimer() {
@@ -382,21 +394,21 @@ bool AirsimSimulator::startSimTimer() {
   }
 }
 
-void AirsimSimulator::readSimTimeCallback(){
+void AirsimSimulator::readSimTimeCallback() {
   /**
    * TODO(schmluk): make this nice.
    * This is currently a work-around as getting only the time stamp is not yet exposed. However, this call does not run
    * on the game thread afaik and was not measured to slow down other tasks.
-   * Although this querries sim time via a RPC call, it can run at ~4000 Hz so delay should be >1 ms.
+   * Although this queries sim time via RPC call, it can run at ~4000 Hz so delay should be <1 ms.
    */
-  uint64_t ts =  airsim_time_client_.getMultirotorState(config_.vehicle_name).timestamp;
+  uint64_t ts = airsim_time_client_.getMultirotorState(config_.vehicle_name).timestamp;
   rosgraph_msgs::Clock msg;
   msg.clock.fromNSec(ts);
   time_pub_.publish(msg);
 }
 
 ros::Time AirsimSimulator::getTimeStamp(msr::airlib::TTimePoint airsim_stamp) {
-  if (use_sim_time_ && airsim_stamp > 0){
+  if (use_sim_time_ && airsim_stamp > 0) {
     ros::Time t;
     t.fromNSec(airsim_stamp);
     return t;
@@ -438,6 +450,9 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent &) {
   transformStamped.transform.rotation.w = state.kinematics_estimated.pose.orientation.w();
   frame_converter_.airsimToRos(&(transformStamped.transform));
   tf_broadcaster_.sendTransform(transformStamped);
+  current_position_ = Eigen::Vector3d(state.kinematics_estimated.pose.position[0],
+                                      state.kinematics_estimated.pose.position[1],
+                                      state.kinematics_estimated.pose.position[2]);
 
   // odom
   if (odom_pub_.getNumSubscribers() > 0) {
@@ -532,7 +547,7 @@ bool AirsimSimulator::readTransformFromRos(const std::string &topic,
       } catch (...) {
         try {
           int ival = row[j];
-          val = (double)ival;
+          val = (double) ival;
         } catch (...) {
           LOG(WARNING) << "Unable to convert all entries of transformation '" << topic << "' to double.";
           return false;
@@ -553,7 +568,7 @@ bool AirsimSimulator::readTransformFromRos(const std::string &topic,
 void AirsimSimulator::onShutdown() {
   LOG(INFO) << "Shutting down: resetting airsim server.";
   is_shutdown_ = true;
-  for (const auto &timer : sensor_timers_){
+  for (const auto &timer : sensor_timers_) {
     timer->signalShutdown();
   }
   if (is_connected_) {

@@ -43,6 +43,7 @@ class AirsimSimulator {
     msr::airlib::DrivetrainType drive_train_type = msr::airlib::DrivetrainType::MaxDegreeOfFreedom; // this is currently fixed
 
     // sensors
+    bool publish_sensor_transforms = true;   // true: use gt transforms, false: use static mounting transform
     struct Sensor{
       inline static const std::string TYPE_CAMERA = "Camera";
       inline static const std::string TYPE_LIDAR = "Lidar";
@@ -50,7 +51,7 @@ class AirsimSimulator {
       std::string name = "";
       std::string sensor_type = "";
       std::string output_topic;   // defaults to vehicle_name/sensor_name
-      std::string frame_name;     // defaults to vehicle_name_sensor_name
+      std::string frame_name;     // defaults to vehicle_name/sensor_name
       double rate = 10.0;    // Hz
       bool force_separate_timer = false;    // By default all sensors of identical rate are synced into 1 timer,
                                             // but that can slow down overall performance for a specific sensor
@@ -122,6 +123,7 @@ class AirsimSimulator {
   bool is_running_;   // whether the simulator setup successfully and is working
   bool is_shutdown_;    // After setting is shutdown no more airsim requests are allowed.
   bool use_sim_time_;   // Publish ros time based on the airsim clock
+  Eigen::Vector3d current_position_;  // Current position of the drone
 
   // setup methods
   bool setupAirsim();   // Connect to Airsim and verify
