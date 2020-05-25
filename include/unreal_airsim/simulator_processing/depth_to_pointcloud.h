@@ -23,25 +23,29 @@ class DepthToPointcloud : public ProcessorBase {
   bool setupFromRos(const ros::NodeHandle &nh, const std::string &ns) override;
 
   // ROS callbacks
-  void depthIamgeCallback(const sensor_msgs::ImagePtr &msg);
-  void colorIamgeCallback(const sensor_msgs::ImagePtr &msg);
+  void depthImageCallback(const sensor_msgs::ImagePtr &msg);
+  void colorImageCallback(const sensor_msgs::ImagePtr &msg);
+  void segmentationImageCallback(const sensor_msgs::ImagePtr &msg);
 
  protected:
   // setup
-  static  ProcessorFactory::Registration<DepthToPointcloud> registration_;
+  static ProcessorFactory::Registration<DepthToPointcloud> registration_;
 
   // ROS
   ros::NodeHandle nh_;
   ros::Publisher pub_;
   ros::Subscriber depth_sub_;
   ros::Subscriber color_sub_;
+  ros::Subscriber segmentation_sub_;
 
   // queues
   std::deque<sensor_msgs::ImagePtr> depth_queue_;
   std::deque<sensor_msgs::ImagePtr> color_queue_;
+  std::deque<sensor_msgs::ImagePtr> segmentation_queue_;
 
   // variables
   bool use_color_;
+  bool use_segmentation_;
   int max_queue_length_;
   bool is_setup_;
   float fov_;    // depth cam intrinsics, fov in degrees
@@ -49,9 +53,14 @@ class DepthToPointcloud : public ProcessorBase {
   float vx_;
   float vy_;
   float max_depth_; // points beyond this depth [m] will be discarded
+  float max_ray_length_; // points beyond this ray length [m] will be discarded
+
 
   // methods
-  void publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr, const sensor_msgs::ImagePtr &color_ptr);
+  void findMatchingMessagesToPublish(const sensor_msgs::ImagePtr &reference_msg);
+  void publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr,
+                         const sensor_msgs::ImagePtr &color_ptr,
+                         const sensor_msgs::ImagePtr &segmentation_ptr);
 };
 
 } // namespcae unreal_airsim::simulator_processor
