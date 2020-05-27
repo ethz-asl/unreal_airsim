@@ -74,7 +74,8 @@ bool DepthToPointcloud::setupFromRos(const ros::NodeHandle &nh, const std::strin
     color_sub_ = nh_.subscribe(color_topic, max_queue_length_, &DepthToPointcloud::colorImageCallback, this);
   }
   if (use_segmentation_) {
-    segmentation_sub_ = nh_.subscribe(segmentation_topic, max_queue_length_, &DepthToPointcloud::segmentationImageCallback, this);
+    segmentation_sub_ =
+        nh_.subscribe(segmentation_topic, max_queue_length_, &DepthToPointcloud::segmentationImageCallback, this);
   }
   return true;
 }
@@ -105,7 +106,7 @@ void DepthToPointcloud::colorImageCallback(const sensor_msgs::ImagePtr &msg) {
   findMatchingMessagesToPublish(msg);
 }
 
-void DepthToPointcloud::segmentationImageCallback(const sensor_msgs::ImagePtr &msg){
+void DepthToPointcloud::segmentationImageCallback(const sensor_msgs::ImagePtr &msg) {
   // store segmentation img in queue
   segmentation_queue_.push_back(msg);
   if (segmentation_queue_.size() > max_queue_length_) {
@@ -114,15 +115,17 @@ void DepthToPointcloud::segmentationImageCallback(const sensor_msgs::ImagePtr &m
   findMatchingMessagesToPublish(msg);
 }
 
-void DepthToPointcloud::findMatchingMessagesToPublish(const sensor_msgs::ImagePtr &reference_msg){
+void DepthToPointcloud::findMatchingMessagesToPublish(const sensor_msgs::ImagePtr &reference_msg) {
   std::deque<sensor_msgs::ImagePtr>::iterator depth_it, color_it, segmentation_it;
   bool found_color = true;
   bool found_segmentation = true;    // if a modality is not used we count it as found
 
   depth_it = std::find_if(depth_queue_.begin(),
                           depth_queue_.end(),
-                                 [reference_msg](const sensor_msgs::ImagePtr &s) { return s->header.stamp == reference_msg->header.stamp; });
-  if (depth_it == depth_queue_.end()){
+                          [reference_msg](const sensor_msgs::ImagePtr &s) {
+                            return s->header.stamp == reference_msg->header.stamp;
+                          });
+  if (depth_it == depth_queue_.end()) {
     // depth image is always necessary
     return;
   }
@@ -131,7 +134,9 @@ void DepthToPointcloud::findMatchingMessagesToPublish(const sensor_msgs::ImagePt
     // check whether there is a color image with matching timestamp
     color_it = std::find_if(color_queue_.begin(),
                             color_queue_.end(),
-                                   [reference_msg](const sensor_msgs::ImagePtr &s) { return s->header.stamp == reference_msg->header.stamp; });
+                            [reference_msg](const sensor_msgs::ImagePtr &s) {
+                              return s->header.stamp == reference_msg->header.stamp;
+                            });
     if (color_it == color_queue_.end()) {
       found_color = false;
     }
@@ -141,7 +146,9 @@ void DepthToPointcloud::findMatchingMessagesToPublish(const sensor_msgs::ImagePt
     // check whether there is a segmentation image with matching timestamp
     segmentation_it = std::find_if(segmentation_queue_.begin(),
                                    segmentation_queue_.end(),
-                            [reference_msg](const sensor_msgs::ImagePtr &s) { return s->header.stamp == reference_msg->header.stamp; });
+                                   [reference_msg](const sensor_msgs::ImagePtr &s) {
+                                     return s->header.stamp == reference_msg->header.stamp;
+                                   });
     if (segmentation_it == segmentation_queue_.end()) {
       found_segmentation = false;
     }
@@ -169,9 +176,9 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
    * We further assume that segmentation is created using infrared (ImageType::Infrared), i.e. the labels are provided
    * in the first channel of the segmentation image.
    */
-   if (pub_.getNumSubscribers() == 0){
-     return;
-   }
+  if (pub_.getNumSubscribers() == 0) {
+    return;
+  }
   cv_bridge::CvImageConstPtr depth_img, color_img, segmentation_img;
   depth_img = cv_bridge::toCvShare(depth_ptr, depth_ptr->encoding);
   if (use_color_) {
@@ -196,12 +203,12 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
   // fields setup
   sensor_msgs::PointCloud2Modifier modifier(cloud);
   if (use_color_) {
-    if (use_segmentation_){
+    if (use_segmentation_) {
       modifier.setPointCloud2Fields(5, "x", 1, sensor_msgs::PointField::FLOAT32,
-                           "y", 1, sensor_msgs::PointField::FLOAT32,
-                           "z", 1, sensor_msgs::PointField::FLOAT32,
-                           "rgb", 1, sensor_msgs::PointField::FLOAT32,
-                           "id", 1, sensor_msgs::PointField::UINT8);
+                                    "y", 1, sensor_msgs::PointField::FLOAT32,
+                                    "z", 1, sensor_msgs::PointField::FLOAT32,
+                                    "rgb", 1, sensor_msgs::PointField::FLOAT32,
+                                    "id", 1, sensor_msgs::PointField::UINT8);
     } else {
       modifier.setPointCloud2Fields(4, "x", 1, sensor_msgs::PointField::FLOAT32,
                                     "y", 1, sensor_msgs::PointField::FLOAT32,
@@ -209,7 +216,7 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
                                     "rgb", 1, sensor_msgs::PointField::FLOAT32);
     }
   } else {
-    if (use_segmentation_){
+    if (use_segmentation_) {
       modifier.setPointCloud2Fields(4, "x", 1, sensor_msgs::PointField::FLOAT32,
                                     "y", 1, sensor_msgs::PointField::FLOAT32,
                                     "z", 1, sensor_msgs::PointField::FLOAT32,
@@ -240,18 +247,20 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
       if (z > max_depth_) {
         continue;
       }
-      float x = ((float)u - vx_) * z / focal_length_;
-      float y = ((float)v - vy_) * z / focal_length_;
-      if (max_ray_length_ > 0.0){
-         float dist_square = x * x + y * y + z * z;
-         if (dist_square > max_ray_length_ * max_ray_length_){
-           continue;
-         }
+      float x = ((float) u - vx_) * z / focal_length_;
+      float y = ((float) v - vy_) * z / focal_length_;
+      if (max_ray_length_ > 0.0) {
+        float dist_square = x * x + y * y + z * z;
+        if (dist_square > max_ray_length_ * max_ray_length_) {
+          continue;
+        }
       }
       out_x[0] = x;
       out_y[0] = y;
       out_z[0] = z;
-      ++out_x;  ++out_y; ++out_z;
+      ++out_x;
+      ++out_y;
+      ++out_z;
 
       if (use_color_) {
         cv::Vec3b color = color_img->image.at<cv::Vec3b>(v, u);
@@ -263,7 +272,7 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
 
       if (use_segmentation_) {
         cv::Vec3b seg = segmentation_img->image.at<cv::Vec3b>(v, u);
-        if (use_infrared_compensation_){
+        if (use_infrared_compensation_) {
           out_seg[0] = infrared_compensation_[seg[0]];
         } else {
           out_seg[0] = seg[0];
