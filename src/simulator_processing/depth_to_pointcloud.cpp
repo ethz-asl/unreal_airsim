@@ -28,6 +28,7 @@ bool DepthToPointcloud::setupFromRos(const ros::NodeHandle &nh, const std::strin
   nh.getParam(ns + "depth_camera_name", depth_camera_name);
   nh.param(ns + "max_depth", max_depth_, 1e6f);
   nh.param(ns + "max_ray_length", max_ray_length_, 1e6f);
+  nh.param(ns + "use_infrared_compensation", use_infrared_compensation_, false);
   nh.param(ns + "output_topic", output_topic, parent_->getConfig().vehicle_name + "/" + name_);
   if (nh.hasParam(ns + "color_camera_name")) {
     nh.getParam(ns + "color_camera_name", color_camera_name);
@@ -262,7 +263,11 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
 
       if (use_segmentation_) {
         cv::Vec3b seg = segmentation_img->image.at<cv::Vec3b>(v, u);
-        out_seg[0] = seg[0];
+        if (use_infrared_compensation_){
+          out_seg[0] = infrared_compensation_[seg[0]];
+        } else {
+          out_seg[0] = seg[0];
+        }
         ++out_seg;
       }
     }
