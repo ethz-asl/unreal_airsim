@@ -40,6 +40,7 @@ cs_add_library(${PROJECT_NAME}
         src/online_simulator/sensor_timer.cpp
         src/simulator_processing/processor_factory.cpp
         src/simulator_processing/depth_to_pointcloud.cpp
+        src/simulator_processing/infrared_id_compensation.cpp
         )
 
 ###############
