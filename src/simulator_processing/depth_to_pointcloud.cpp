@@ -19,28 +19,36 @@ bool DepthToPointcloud::setupFromRos(const ros::NodeHandle &nh, const std::strin
   is_setup_ = false;
 
   // get params
-  std::string depth_camera_name, color_camera_name, segmentation_camera_name, output_topic;
+  std::string depth_camera_name, color_camera_name, segmentation_camera_name, output_topic, depth_topic, color_topic,
+      segmentation_topic;
   nh.param(ns + "max_queue_length", max_queue_length_, 10);
-  if (!nh.hasParam(ns + "depth_camera_name")) {
-    LOG(FATAL) << "DepthToPointcloud requires the 'depth_camera_name' param to be set!";
-    return false;
-  }
-  nh.getParam(ns + "depth_camera_name", depth_camera_name);
   nh.param(ns + "max_depth", max_depth_, 1e6f);
   nh.param(ns + "max_ray_length", max_ray_length_, 1e6f);
-  nh.param(ns + "use_infrared_compensation", use_infrared_compensation_, false);
   nh.param(ns + "output_topic", output_topic, parent_->getConfig().vehicle_name + "/" + name_);
+  if (nh.hasParam(ns + "depth_camera_name")) {
+    nh.getParam(ns + "depth_camera_name", depth_camera_name);
+  } else if (nh.hasParam(ns + "depth_topic")) {
+    nh.getParam(ns + "depth_camera_topic", depth_topic);
+  } else {
+    LOG(FATAL) << "DepthToPointcloud requires the 'depth_camera_name' or 'depth_camera_topic' param to be set!";
+    return false;
+  }
   if (nh.hasParam(ns + "color_camera_name")) {
     nh.getParam(ns + "color_camera_name", color_camera_name);
+    use_color_ = true;
+  } else if (nh.hasParam(ns + "color_camera_topic")) {
+    nh.getParam(ns + "color_camera_topic", color_topic);
     use_color_ = true;
   }
   if (nh.hasParam(ns + "segmentation_camera_name")) {
     nh.getParam(ns + "segmentation_camera_name", segmentation_camera_name);
     use_segmentation_ = true;
+  } else if (nh.hasParam(ns + "segmentation_camera_topic")) {
+    nh.getParam(ns + "segmentation_camera_topic", segmentation_topic);
+    use_segmentation_ = true;
   }
 
   // Find source cameras
-  std::string depth_topic, color_topic, segmentation_topic;
   for (const auto &sensor : parent_->getConfig().sensors) {
     if (sensor->name == depth_camera_name) {
       depth_topic = sensor->output_topic;
@@ -232,14 +240,13 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
   sensor_msgs::PointCloud2Iterator<float> out_x(cloud, "x");
   sensor_msgs::PointCloud2Iterator<float> out_y(cloud, "y");
   sensor_msgs::PointCloud2Iterator<float> out_z(cloud, "z");
-  // Apparently there's no default constructor for the iterator, if no color is used these will be ignored.
-  sensor_msgs::PointCloud2Iterator<uint8_t> out_rgb(cloud, "x");
-  sensor_msgs::PointCloud2Iterator<uint8_t> out_seg(cloud, "x");
+  std::unique_ptr<sensor_msgs::PointCloud2Iterator<uint8_t>> out_rgb;
+  std::unique_ptr<sensor_msgs::PointCloud2Iterator<uint8_t>> out_seg;
   if (use_color_) {
-    out_rgb = sensor_msgs::PointCloud2Iterator<uint8_t>(cloud, "rgb");
+    out_rgb = std::make_unique<sensor_msgs::PointCloud2Iterator<uint8_t>>(cloud, "rgb");
   }
   if (use_segmentation_) {
-    out_seg = sensor_msgs::PointCloud2Iterator<uint8_t>(cloud, "id");
+    out_seg = std::make_unique<sensor_msgs::PointCloud2Iterator<uint8_t>>(cloud, "id");
   }
   for (int v = 0; v < depth_img->image.rows; v++) {
     for (int u = 0; u < depth_img->image.cols; u++) {
@@ -264,20 +271,16 @@ void DepthToPointcloud::publishPointcloud(const sensor_msgs::ImagePtr &depth_ptr
 
       if (use_color_) {
         cv::Vec3b color = color_img->image.at<cv::Vec3b>(v, u);
-        out_rgb[0] = color[0];
-        out_rgb[1] = color[1];
-        out_rgb[2] = color[2];
-        ++out_rgb;
+        (*out_rgb)[0] = color[0];
+        (*out_rgb)[1] = color[1];
+        (*out_rgb)[2] = color[2];
+        ++(*out_rgb);
       }
 
       if (use_segmentation_) {
         cv::Vec3b seg = segmentation_img->image.at<cv::Vec3b>(v, u);
-        if (use_infrared_compensation_) {
-          out_seg[0] = infrared_compensation_[seg[0]];
-        } else {
-          out_seg[0] = seg[0];
-        }
-        ++out_seg;
+        (*out_seg)[0] = seg[0];
+        ++(*out_seg);
       }
     }
   }
