@@ -4,6 +4,7 @@
   <version>0.0.0</version>
   <description>Utilities and ROS-interfaces to UE4 via Airsim.</description>
 
+  <author email="schmluk@mavt.ethz.ch">Lukas Schmid</author>
   <maintainer email="schmluk@mavt.ethz.ch">Lukas Schmid</maintainer>
 
   <license>BSD</license>

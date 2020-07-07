@@ -46,15 +46,18 @@ class DepthToPointcloud : public ProcessorBase {
   // variables
   bool use_color_;
   bool use_segmentation_;
-  int max_queue_length_;
   bool is_setup_;
   float fov_;    // depth cam intrinsics, fov in degrees
   float focal_length_;
   float vx_;
   float vy_;
+
+
+  // params
+  int max_queue_length_;
   float max_depth_; // points beyond this depth [m] will be discarded
   float max_ray_length_; // points beyond this ray length [m] will be discarded
-
+  bool use_infrared_compensation_;
 
   // methods
   void findMatchingMessagesToPublish(const sensor_msgs::ImagePtr &reference_msg);

@@ -157,8 +157,8 @@ void SensorTimer::processLidars() {
     if (parent_->getConfig().publish_sensor_transforms) {
       geometry_msgs::TransformStamped transformStamped;
       transformStamped.header.stamp = msg->header.stamp;
-      transformStamped.header.frame_id = lidar_frame_names_[i];
-      transformStamped.child_frame_id = parent_->getConfig().simulator_frame_name;
+      transformStamped.header.frame_id = parent_->getConfig().simulator_frame_name;
+      transformStamped.child_frame_id = lidar_frame_names_[i];
       transformStamped.transform.translation.x = lidar_data.pose.position[0];
       transformStamped.transform.translation.y = lidar_data.pose.position[1];
       transformStamped.transform.translation.z = lidar_data.pose.position[2];
@@ -169,7 +169,6 @@ void SensorTimer::processLidars() {
       parent_->getFrameConverter().airsimToRos(&(transformStamped.transform));
       tf_broadcaster_.sendTransform(transformStamped);
     }
-
     lidar_pubs_[i].publish(msg);
   }
 }
