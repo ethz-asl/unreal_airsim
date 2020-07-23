@@ -4,17 +4,16 @@
 #include <csignal>
 #include <memory>
 
-
 // Lets the simulator shutdown in a controlled fashion
 std::unique_ptr<unreal_airsim::AirsimSimulator> the_simulator;
 void sigintHandler(int sig) {
-  if(the_simulator){
+  if (the_simulator) {
     the_simulator->onShutdown();
   }
   ros::shutdown();
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   ros::init(argc, argv, "airsim_simulator", ros::init_options::NoSigintHandler);
 
   // Setup logging
@@ -26,10 +25,12 @@ int main(int argc, char **argv) {
   ros::NodeHandle nh("");
   ros::NodeHandle nh_private("~");
   signal(SIGINT, sigintHandler);
-  the_simulator = std::make_unique<unreal_airsim::AirsimSimulator>(nh, nh_private);
+  the_simulator =
+      std::make_unique<unreal_airsim::AirsimSimulator>(nh, nh_private);
 
   int n_threads;
-  nh_private.param("n_threads", n_threads, 0);  // 0 defaults to #physical cores available
+  nh_private.param("n_threads", n_threads,
+                   0);  // 0 defaults to #physical cores available
   ros::AsyncSpinner spinner(n_threads);
   spinner.start();
   ros::waitForShutdown();

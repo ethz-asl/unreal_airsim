@@ -1,16 +1,15 @@
 #ifndef UNREAL_AIRSIM_ONLINE_SIMULATOR_SENSOR_TIMER_H_
 #define UNREAL_AIRSIM_ONLINE_SIMULATOR_SENSOR_TIMER_H_
 
-#include "unreal_airsim/frame_converter.h"
+#include <string>
+#include <vector>
 
-// ROS
 #include <ros/ros.h>
 #include <tf2_ros/transform_broadcaster.h>
 
-// Airsim
-#include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
+#include <vehicles/multirotor/api/MultirotorRpcLibClient.hpp>
 
-#include <string>
+#include "unreal_airsim/frame_converter.h"
 
 namespace unreal_airsim {
 class AirsimSimulator;
@@ -20,27 +19,25 @@ class AirsimSimulator;
  */
 class SensorTimer {
  public:
-  SensorTimer(const ros::NodeHandle &nh,
-              double rate,
-              bool is_private,
-              const std::string &vehicle_name,
-              AirsimSimulator* parent);
+  SensorTimer(const ros::NodeHandle& nh, double rate, bool is_private,
+              const std::string& vehicle_name, AirsimSimulator* parent);
   virtual ~SensorTimer() = default;
 
-  void timerCallback(const ros::TimerEvent &);
+  void timerCallback(const ros::TimerEvent&);
 
   double getRate() const;
   bool isPrivate() const;
   void signalShutdown();
-  void addSensor(const AirsimSimulator &simulator, int sensor_index);
+  void addSensor(const AirsimSimulator& simulator, int sensor_index);
 
  protected:
-  AirsimSimulator* parent_;   // Acces to owner
+  AirsimSimulator* parent_;  // Acces to owner
 
   // general
   bool is_shutdown_;
-  double rate_;    // rate of the sensor callback
-  bool is_private_;  // whether this timer runs on multiple sensors or a single one
+  double rate_;      // rate of the sensor callback
+  bool is_private_;  // whether this timer runs on multiple sensors or a single
+                     // one
   msr::airlib::MultirotorRpcLibClient airsim_client_;
   ros::Timer timer_;
   std::string vehicle_name_;
@@ -68,6 +65,6 @@ class SensorTimer {
   std::vector<std::string> imu_frame_names_;
 };
 
-} // namespcae unreal_airsim
+}  // namespace unreal_airsim
 
-#endif // UNREAL_AIRSIM_ONLINE_SIMULATOR_SENSOR_TIMER_H_
+#endif  // UNREAL_AIRSIM_ONLINE_SIMULATOR_SENSOR_TIMER_H_
