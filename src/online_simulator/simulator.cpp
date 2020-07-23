@@ -348,7 +348,8 @@ void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose &msg) {
   double yaw = tf2::getYaw(tf2::Quaternion(ori.x(), ori.y(), ori.z(), ori.w()));    // Eigen's eulerAngles apparently
   // messes up some wrap arounds or direcions and gets the wrong yaws in some cases
   yaw = yaw / M_PI * 180.0;
-  const double kMinMovingDistance = 0.1;    // m
+  constexpr double kMinMovingDistance = 0.1;    // m
+  airsim_move_client_.cancelLastTask();
   if ((pos - current_position_).norm() >= kMinMovingDistance) {
     frame_converter_.rosToAirsim(&pos);
     auto yaw_mode = msr::airlib::YawMode(false, yaw);
@@ -372,7 +373,7 @@ void AirsimSimulator::startupCallback(const ros::TimerEvent &) {
   std_msgs::Bool msg;
   msg.data = true;
   sim_is_ready_pub_.publish(msg);
-  LOG(INFO) << "Airsim simulation is ready!";
+  LOG(INFO) << "AirSim simulation is ready!";
 }
 
 bool AirsimSimulator::startSimTimer() {
@@ -566,12 +567,12 @@ bool AirsimSimulator::readTransformFromRos(const std::string &topic,
 }
 
 void AirsimSimulator::onShutdown() {
-  LOG(INFO) << "Shutting down: resetting airsim server.";
   is_shutdown_ = true;
   for (const auto &timer : sensor_timers_) {
     timer->signalShutdown();
   }
   if (is_connected_) {
+    LOG(INFO) << "Shutting down: resetting airsim server.";
     airsim_state_client_.reset();
     airsim_state_client_.enableApiControl(false);
   }
