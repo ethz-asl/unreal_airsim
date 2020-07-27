@@ -6,6 +6,7 @@ This repo contains simulation tools and utilities to perform realistic simulatio
 # Table of Contents
 **Getting started:**
 * [Installation](#Instalation)
+* [Contributing](#Contributing)
 * [Examples](#Examples)
 * [Troubleshooting](#Troubleshooting)
 
@@ -13,6 +14,7 @@ This repo contains simulation tools and utilities to perform realistic simulatio
 * [Settings](docs/settings.md)
 * [Coordinate Systems](docs/coordinate_systems.md)
 * [Getting UE4 Assets](docs/download_ue4_assets.md)
+* [Tips and Tricks](docs/tips_and_tricks.md)
 
 # Installation
 The following 3 components are necessary to utilize the full stack of unreal_airsim tools.
@@ -71,6 +73,26 @@ This repo was developed on a desktop-full version of [ROS melodic](http://wiki.r
     catkin build unreal_airsim
     source ../devel/setup.bash
     ```
+  
+# Contributing
+If you are adding features to this repo please consider opening back a PR, so others can use it as well.
+If you consider contributing, please adhere to the [google style guide](https://google.github.io/styleguide/cppguide.html) and setup our linter:
+```shell script
+# Download the linter
+cd <linter_dest>
+git clone git@github.com:ethz-asl/linter.git  # SSH
+git clone https://github.com/ethz-asl/linter.git  # HTTPS
+
+# install the linter
+cd linter
+echo ". $(realpath setup_linter.sh)" >> ~/.bashrc  # Or the matching file for
+                                                   # your shell.
+bash
+
+# Register this repo for the linter
+roscd unreal_airsim
+init_linter_git_hooks
+```
 
 # Examples
 This demo briefly walks through the steps on how to use the online_simulator.
