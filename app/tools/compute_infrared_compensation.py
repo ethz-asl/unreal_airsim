@@ -9,7 +9,7 @@ import numpy as np
 import airsim
 
 
-def compute_infrared_correction(destination):
+def compute_infrared_correction(destination, camera_name):
     """
     Compute the transfer dynamics from segmentation id in a currently running
     UE4 game and the value in the infrared image and save it to file.
@@ -35,12 +35,13 @@ def compute_infrared_correction(destination):
                             quotechar='|',
                             quoting=csv.QUOTE_MINIMAL)
         writer.writerow(["MeshID", "InfraRedID"])
+        requests = [
+            airsim.ImageRequest(str(camera_name), airsim.ImageType.Infrared,
+                                False, False)
+        ]
         for i in range(256):
             client.simSetSegmentationObjectID(r"[\w]*", i, True)
-            responses = client.simGetImages([
-                airsim.ImageRequest("Id_cam", airsim.ImageType.Infrared, False,
-                                    False)
-            ])
+            responses = client.simGetImages(requests)
             response = responses[0]
             img1d = np.fromstring(response.image_data_uint8, dtype=np.uint8)
             writer.writerow([i, img1d[0]])
@@ -57,10 +58,16 @@ def compute_infrared_correction(destination):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("destination",
-                        nargs='?',
+    parser.add_argument("-d",
+                        "--destination",
+                        dest='d',
                         help="Path or filename, ending in .csv, where to save "
                         "the infrared corrections.",
                         default=os.getcwd())
+    parser.add_argument("-c",
+                        "--camera_name",
+                        dest='c',
+                        help="Name of the camera to use in AirSim.",
+                        default="")
     args = parser.parse_args()
-    compute_infrared_correction(args.destination)
+    compute_infrared_correction(args.d, args.c)
