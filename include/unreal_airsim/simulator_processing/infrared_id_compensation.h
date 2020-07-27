@@ -1,14 +1,13 @@
 #ifndef UNREAL_AIRSIM_SIMULATOR_PROCESSOR_INFRARED_ID_COMPENSATION_H_
 #define UNREAL_AIRSIM_SIMULATOR_PROCESSOR_INFRARED_ID_COMPENSATION_H_
 
-#include "unreal_airsim/simulator_processing/processor_base.h"
+#include <deque>
+#include <string>
 
-// ROS
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 
-#include <deque>
-#include <string>
+#include "unreal_airsim/simulator_processing/processor_base.h"
 
 namespace unreal_airsim::simulator_processor {
 /***
@@ -19,7 +18,7 @@ namespace unreal_airsim::simulator_processor {
 class InfraredIdCompensation : public ProcessorBase {
  public:
   InfraredIdCompensation() = default;
-  virtual ~InfraredIdCompensation() = default;
+  ~InfraredIdCompensation() override = default;
 
   bool setupFromRos(const ros::NodeHandle& nh, const std::string& ns) override;
 
@@ -37,7 +36,8 @@ class InfraredIdCompensation : public ProcessorBase {
 
   // the actual compensation values as measured for the current setup. Values
   // that can not be mapped to are 255, so if anything goes wrong it can be
-  // addressed via this special id label.
+  // addressed via this special id label. This table can be read from a file
+  // created by the 'compute_infrared_corrections.py' tool.
   uint8_t infrared_compensation_[256]{
       0,   255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 1,   255,
       255, 255, 255, 255, 255, 255, 255, 2,   255, 255, 255, 255, 255, 3,   255,

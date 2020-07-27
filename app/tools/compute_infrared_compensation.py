@@ -1,4 +1,15 @@
 #!/usr/bin/env python
+"""
+In some cases, AirSim does not generate infrared values corresponding to the
+meshID, see https://github.com/microsoft/AirSim/issues/1992.
+
+Use this script to produce a infrared to meshID mapping for the currently
+running UE4 game, that can be read by the unreal_airsim simulator using the
+InfraredIdCompensation processor.
+
+Notice that this script will override all meshIDs, such that they need to be
+reset afterwards.
+"""
 
 import csv
 import argparse
