@@ -4,8 +4,8 @@
 
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
-#include <sensor_msgs/PointCloud2.h>
 
+#include "3rd_party/csv.h"
 #include "unreal_airsim/online_simulator/simulator.h"
 
 namespace unreal_airsim::simulator_processor {
@@ -25,6 +25,24 @@ bool InfraredIdCompensation::setupFromRos(const ros::NodeHandle& nh,
     LOG(ERROR)
         << "InfraredIdCompensation requires the 'output_topic' to be set.";
     return false;
+  }
+  if (nh_.hasParam(ns + "correction_file")) {
+    // Allow reading the corrections from file
+    std::string correction_file;
+    nh_.getParam(ns + "correction_file", correction_file);
+    io::CSVReader<2> in(correction_file);
+    in.read_header(io::ignore_extra_column, "MeshID", "InfraRedID");
+    int mesh, ir;
+    std::fill_n(infrared_compensation_, 256, 255);
+    int previous = -1;
+    while (in.read_row(mesh, ir)) {
+      if (ir > previous) {
+        infrared_compensation_[ir] = mesh;
+        previous = ir;
+      }
+    }
+    LOG(INFO) << "Read infrared corrections from file '" << correction_file
+              << "'.";
   }
   std::string input_topic, output_topic;
   nh_.getParam(ns + "input_topic", input_topic);
