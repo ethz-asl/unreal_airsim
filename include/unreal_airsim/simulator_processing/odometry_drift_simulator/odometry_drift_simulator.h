@@ -63,11 +63,11 @@ class OdometryDriftSimulator {
     return last_ground_truth_pose_msg_;
   }
 
-  void publishTfs();
+  void publishTfs() const;
 
  private:
   // Settings
-  Config config_;
+  const Config config_;
   bool started_publishing_;
 
   // Simulator state
@@ -80,11 +80,15 @@ class OdometryDriftSimulator {
   geometry_msgs::TransformStamped last_ground_truth_pose_msg_;
 
   // Noise distributions
-  struct {
+  struct VelocityNoiseDistributions {
+    explicit VelocityNoiseDistributions(
+        const Config::NoiseConfigMap& velocity_noise_configs);
     NoiseDistribution x, y, z;
     NoiseDistribution yaw;
   } velocity_noise_;
-  struct {
+  struct PoseNoiseDistributions {
+    explicit PoseNoiseDistributions(
+        const Config::NoiseConfigMap& pose_noise_configs);
     NoiseDistribution x, y, z;
     NoiseDistribution yaw, pitch, roll;
   } pose_noise_;

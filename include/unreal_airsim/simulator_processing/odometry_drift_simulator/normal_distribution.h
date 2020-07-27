@@ -28,7 +28,7 @@ class NormalDistribution {
     friend std::ostream& operator<<(std::ostream& os, const Config& config);
   };
 
-  explicit NormalDistribution(const double& mean = 0, const double& stddev = 1)
+  explicit NormalDistribution(double mean = 0.0, double stddev = 1.0)
       : mean_(mean), stddev_(stddev) {
     CHECK_GE(stddev_, 0.0) << "Standard deviation must be non-negative";
   }
@@ -56,7 +56,7 @@ class NormalDistribution {
   }
 
  private:
-  double mean_, stddev_;
+  const double mean_, stddev_;
 
   // Standard normal distribution
   std::normal_distribution<double> normal_distribution_;

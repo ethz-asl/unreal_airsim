@@ -9,24 +9,11 @@ OdometryDriftSimulator::OdometryDriftSimulator(Config config)
       started_publishing_(false),
       velocity_noise_sampling_period_(1.f / config.velocity_noise_frequency_hz),
       current_linear_velocity_noise_sample_W_(Transformation::Vector3::Zero()),
-      current_angular_velocity_noise_sample_W_(
-          Transformation::Vector3::Zero()) {
-  // Initialize the drift noise distributions
-  velocity_noise_.x = NoiseDistribution(config_.velocity_noise["x"]);
-  velocity_noise_.y = NoiseDistribution(config_.velocity_noise["y"]);
-  velocity_noise_.z = NoiseDistribution(config_.velocity_noise["z"]);
-  velocity_noise_.yaw = NoiseDistribution(config_.velocity_noise["yaw"]);
-
-  // Initialize the pose noise distributions
-  pose_noise_.x = NoiseDistribution(config_.pose_noise["x"]);
-  pose_noise_.y = NoiseDistribution(config_.pose_noise["y"]);
-  pose_noise_.z = NoiseDistribution(config_.pose_noise["z"]);
-  pose_noise_.roll = NoiseDistribution(config_.pose_noise["roll"]);
-  pose_noise_.pitch = NoiseDistribution(config_.pose_noise["pitch"]);
-  pose_noise_.yaw = NoiseDistribution(config_.pose_noise["yaw"]);
-
-  LOG(INFO) << "Initialized drifting odometry simulator, with config:\n"
-            << config_;
+      current_angular_velocity_noise_sample_W_(Transformation::Vector3::Zero()),
+      velocity_noise_(config.velocity_noise),
+      pose_noise_(config.pose_noise) {
+  VLOG(1) << "Initialized drifting odometry simulator, with config:\n"
+          << config_;
 }
 
 void OdometryDriftSimulator::tick(
@@ -113,6 +100,23 @@ geometry_msgs::TransformStamped OdometryDriftSimulator::getSimulatedPoseMsg()
   return simulated_pose_msg;
 }
 
+OdometryDriftSimulator::VelocityNoiseDistributions::VelocityNoiseDistributions(
+    const OdometryDriftSimulator::Config::NoiseConfigMap&
+        velocity_noise_configs)
+    : x(velocity_noise_configs.at("x")),
+      y(velocity_noise_configs.at("y")),
+      z(velocity_noise_configs.at("z")),
+      yaw(velocity_noise_configs.at("yaw")) {}
+
+OdometryDriftSimulator::PoseNoiseDistributions::PoseNoiseDistributions(
+    const OdometryDriftSimulator::Config::NoiseConfigMap& pose_noise_configs)
+    : x(pose_noise_configs.at("x")),
+      y(pose_noise_configs.at("y")),
+      z(pose_noise_configs.at("z")),
+      yaw(pose_noise_configs.at("yaw")),
+      pitch(pose_noise_configs.at("pitch")),
+      roll(pose_noise_configs.at("roll")) {}
+
 void OdometryDriftSimulator::publishSimulatedPoseTf() const {
   transform_broadcaster_.sendTransform(getSimulatedPoseMsg());
 }
@@ -126,7 +130,7 @@ void OdometryDriftSimulator::publishGroundTruthPoseTf() const {
   transform_broadcaster_.sendTransform(ground_truth_pose_msg);
 }
 
-void OdometryDriftSimulator::publishTfs() {
+void OdometryDriftSimulator::publishTfs() const {
   if (!started_publishing_) {
     return;
   }
