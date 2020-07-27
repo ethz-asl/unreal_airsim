@@ -547,7 +547,6 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
 
     tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(),
                        &odom_msg.pose.pose);
-    frame_converter_.airsimToRos(&odom_msg.pose.pose);
 
     odom_msg.twist.twist.linear.x = state.kinematics_estimated.twist.linear.x();
     odom_msg.twist.twist.linear.y = state.kinematics_estimated.twist.linear.y();
@@ -570,7 +569,6 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
     pose_msg.header.frame_id = config_.simulator_frame_name;
     tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(),
                        &pose_msg.pose);
-    frame_converter_.airsimToRos(&pose_msg.pose);
     pose_pub_.publish(pose_msg);
   }
 
