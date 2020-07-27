@@ -33,8 +33,11 @@ void OdometryDriftSimulator::tick(
     const geometry_msgs::TransformStamped& ground_truth_pose_msg) {
   // Compute the time delta
   const ros::Time& current_timestamp = ground_truth_pose_msg.header.stamp;
-  double delta_t =
-      (current_timestamp - last_ground_truth_pose_msg_.header.stamp).toSec();
+  double delta_t = 0.0;
+  if (!last_ground_truth_pose_msg_.header.stamp.isZero()) {
+    delta_t =
+        (current_timestamp - last_ground_truth_pose_msg_.header.stamp).toSec();
+  }
   last_ground_truth_pose_msg_ = ground_truth_pose_msg;
   if (delta_t < 0.0) {
     LOG(WARNING) << "Time difference between current and last received pose "
