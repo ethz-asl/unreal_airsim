@@ -72,14 +72,18 @@ void SensorTimer::processCameras() {
     return;
   }
   if (!image_requests_.empty()) {
+    // get images from unreal.
     std::vector<msr::airlib::ImageCaptureBase::ImageResponse> responses =
         airsim_client_.simGetImages(image_requests_, vehicle_name_);
     ros::Time timestamp = parent_->getTimeStamp(
         responses[0].time_stamp);  // these are synchronized
+
+    // process responses
     for (size_t i = 0; i < responses.size(); ++i) {
       if (camera_pubs_[i].getNumSubscribers() > 0) {
         sensor_msgs::ImagePtr msg(new sensor_msgs::Image);
         if (responses[i].pixels_as_float) {
+          // Encode float images
           cv::Mat cv_image =
               cv::Mat(responses[i].height, responses[i].width, CV_32FC1);
           memcpy(cv_image.data, responses[i].image_data_float.data(),
@@ -90,9 +94,21 @@ void SensorTimer::processCameras() {
           msg->height = responses[i].height;
           msg->width = responses[i].width;
           msg->is_bigendian = 0;
-          msg->step = responses[i].width * 3;
-          msg->encoding = "bgr8";
-          msg->data = responses[i].image_data_uint8;
+          if (responses[i].image_type ==
+              msr::airlib::ImageCaptureBase::ImageType::Infrared) {
+            // IR images are published as 1C mono images.
+            msg->step = responses[i].width;
+            msg->encoding = "mono8";
+            msg->data.resize(responses[i].image_data_uint8.size() / 3);
+            for (size_t j = 0; j < msg->data.size(); ++j) {
+              msg->data[j] = responses[i].image_data_uint8[j * 3];
+            }
+          } else {
+            // all others are 3C RGB images.
+            msg->step = responses[i].width * 3;
+            msg->encoding = "bgr8";
+            msg->data = responses[i].image_data_uint8;
+          }
         }
         msg->header.stamp = timestamp;
         msg->header.frame_id = camera_frame_names_[i];

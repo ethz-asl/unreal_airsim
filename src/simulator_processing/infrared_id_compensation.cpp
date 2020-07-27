@@ -39,8 +39,8 @@ void InfraredIdCompensation::imageCallback(const sensor_msgs::ImagePtr& msg) {
   cv_bridge::CvImagePtr img = cv_bridge::toCvCopy(msg, msg->encoding);
   for (int v = 0; v < img->image.rows; v++) {
     for (int u = 0; u < img->image.cols; u++) {
-      auto& seg = img->image.at<cv::Vec3b>(v, u);
-      seg[0] = infrared_compensation_[seg[0]];
+      img->image.at<uchar>(v, u) =
+          infrared_compensation_[img->image.at<uchar>(v, u)];
     }
   }
   pub_.publish(img->toImageMsg());
