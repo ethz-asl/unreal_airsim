@@ -19,6 +19,8 @@
 #include "unreal_airsim/online_simulator/sensor_timer.h"
 #include "unreal_airsim/simulator_processing/processor_base.h"
 
+#include "unreal_airsim/simulator_processing/odometry_drift_simulator/odometry_drift_simulator.h"
+
 namespace unreal_airsim {
 /***
  * This class implements a simulation interface with airsim.
@@ -111,6 +113,9 @@ class AirsimSimulator {
   ros::Subscriber command_pose_sub_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::StaticTransformBroadcaster static_tf_broadcaster_;
+
+  // Odometry simulator
+  OdometryDriftSimulator odometry_drift_simulator_;
 
   // Read sim time from AirSim
   std::thread timer_thread_;

@@ -15,6 +15,7 @@ STRICT_MODE_ON
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <minkindr_conversions/kindr_msg.h>
 #include <nav_msgs/Odometry.h>
 #include <rosgraph_msgs/Clock.h>
 #include <std_msgs/Bool.h>
@@ -36,7 +37,9 @@ AirsimSimulator::AirsimSimulator(const ros::NodeHandle& nh,
       nh_private_(nh_private),
       is_connected_(false),
       is_running_(false),
-      is_shutdown_(false) {
+      is_shutdown_(false),
+      odometry_drift_simulator_(
+          OdometryDriftSimulator::Config::fromRosParams(nh_private)) {
   // configure
   readParamsFromRos();
 
@@ -440,7 +443,8 @@ void AirsimSimulator::startupCallback(const ros::TimerEvent&) {
   std_msgs::Bool msg;
   msg.data = true;
   sim_is_ready_pub_.publish(msg);
-  LOG(INFO) << "AirSim simulation is ready!";
+  odometry_drift_simulator_.start();
+  LOG(INFO) << "Airsim simulation is ready!";
 }
 
 bool AirsimSimulator::startSimTimer() {
@@ -516,49 +520,34 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
       airsim_state_client_.getMultirotorState(config_.vehicle_name);
   ros::Time stamp = getTimeStamp(state.timestamp);
 
-  // body frame
+  // convert airsim pose to ROS
   geometry_msgs::TransformStamped transformStamped;
   transformStamped.header.stamp = stamp;
   transformStamped.header.frame_id = config_.simulator_frame_name;
   transformStamped.child_frame_id = config_.vehicle_name;
-  transformStamped.transform.translation.x =
-      state.kinematics_estimated.pose.position[0];
-  transformStamped.transform.translation.y =
-      state.kinematics_estimated.pose.position[1];
-  transformStamped.transform.translation.z =
-      state.kinematics_estimated.pose.position[2];
-  transformStamped.transform.rotation.x =
-      state.kinematics_estimated.pose.orientation.x();
-  transformStamped.transform.rotation.y =
-      state.kinematics_estimated.pose.orientation.y();
-  transformStamped.transform.rotation.z =
-      state.kinematics_estimated.pose.orientation.z();
-  transformStamped.transform.rotation.w =
-      state.kinematics_estimated.pose.orientation.w();
-  frame_converter_.airsimToRos(&(transformStamped.transform));
-  tf_broadcaster_.sendTransform(transformStamped);
-  current_position_ =
-      Eigen::Vector3d(state.kinematics_estimated.pose.position[0],
-                      state.kinematics_estimated.pose.position[1],
-                      state.kinematics_estimated.pose.position[2]);
+  tf::vectorEigenToMsg(state.kinematics_estimated.pose.position.cast<double>(),
+                       transformStamped.transform.translation);
+  tf::quaternionEigenToMsg(
+      state.kinematics_estimated.pose.orientation.cast<double>(),
+      transformStamped.transform.rotation);
+  frame_converter_.airsimToRos(&transformStamped.transform);
 
-  // odom
+  // simulate odometry drift
+  odometry_drift_simulator_.tick(transformStamped);
+  current_position_ =
+      odometry_drift_simulator_.getSimulatedPose().getPosition();
+
+  // publish TFs, odom msgs and pose msgs
+  odometry_drift_simulator_.publishTfs();
   if (odom_pub_.getNumSubscribers() > 0) {
     nav_msgs::Odometry odom_msg;
     odom_msg.header.stamp = stamp;
     odom_msg.header.frame_id = config_.simulator_frame_name;
     odom_msg.child_frame_id = config_.vehicle_name;
-    odom_msg.pose.pose.position.x = state.kinematics_estimated.pose.position[0];
-    odom_msg.pose.pose.position.y = state.kinematics_estimated.pose.position[1];
-    odom_msg.pose.pose.position.z = state.kinematics_estimated.pose.position[2];
-    odom_msg.pose.pose.orientation.x =
-        state.kinematics_estimated.pose.orientation.x();
-    odom_msg.pose.pose.orientation.y =
-        state.kinematics_estimated.pose.orientation.y();
-    odom_msg.pose.pose.orientation.z =
-        state.kinematics_estimated.pose.orientation.z();
-    odom_msg.pose.pose.orientation.w =
-        state.kinematics_estimated.pose.orientation.w();
+
+    tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(),
+                       &odom_msg.pose.pose);
+
     odom_msg.twist.twist.linear.x = state.kinematics_estimated.twist.linear.x();
     odom_msg.twist.twist.linear.y = state.kinematics_estimated.twist.linear.y();
     odom_msg.twist.twist.linear.z = state.kinematics_estimated.twist.linear.z();
@@ -568,35 +557,18 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
         state.kinematics_estimated.twist.angular.y();
     odom_msg.twist.twist.angular.z =
         state.kinematics_estimated.twist.angular.z();
-    frame_converter_.airsimToRos(&(odom_msg.pose.pose));
     // TODO(schmluk): verify that these twist conversions work as intended
-    frame_converter_.airsimToRos(&(odom_msg.twist.twist.linear));
-    frame_converter_.airsimToRos(&(odom_msg.twist.twist.angular));
-    odom_pub_.publish(odom_msg);
+    frame_converter_.airsimToRos(&odom_msg.twist.twist.linear);
+    frame_converter_.airsimToRos(&odom_msg.twist.twist.angular);
 
-    if (pose_pub_.getNumSubscribers() > 0) {
-      geometry_msgs::PoseStamped pose_msg;
-      pose_msg.header.stamp = stamp;
-      pose_msg.header.frame_id = config_.simulator_frame_name;
-      pose_msg.pose = odom_msg.pose.pose;
-      pose_pub_.publish(pose_msg);
-    }
-  } else if (pose_pub_.getNumSubscribers() > 0) {
+    odom_pub_.publish(odom_msg);
+  }
+  if (pose_pub_.getNumSubscribers() > 0) {
     geometry_msgs::PoseStamped pose_msg;
     pose_msg.header.stamp = stamp;
     pose_msg.header.frame_id = config_.simulator_frame_name;
-    pose_msg.pose.position.x = state.kinematics_estimated.pose.position[0];
-    pose_msg.pose.position.y = state.kinematics_estimated.pose.position[1];
-    pose_msg.pose.position.z = state.kinematics_estimated.pose.position[2];
-    pose_msg.pose.orientation.x =
-        state.kinematics_estimated.pose.orientation.x();
-    pose_msg.pose.orientation.y =
-        state.kinematics_estimated.pose.orientation.y();
-    pose_msg.pose.orientation.z =
-        state.kinematics_estimated.pose.orientation.z();
-    pose_msg.pose.orientation.w =
-        state.kinematics_estimated.pose.orientation.w();
-    frame_converter_.airsimToRos(&(pose_msg.pose));
+    tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(),
+                       &pose_msg.pose);
     pose_pub_.publish(pose_msg);
   }
 
