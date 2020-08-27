@@ -3,8 +3,7 @@ project(unreal_airsim)
 add_definitions(-std=c++17)
 
 # Setup Airsim
-# TODO(schmluk): Maybe there's a better way to do this, maybe catkinize
-set(AIRSIM_ROOT /home/lukas/programs/AirSim)   # setup your Airsim directory here
+include(AirsimPath.txt)
 
 # We add all these sources so they can be compiled with e.g. gcc, since the Airsim(Plugin) binaries need to be compiled
 # with clang for compatibility with unreal engine
