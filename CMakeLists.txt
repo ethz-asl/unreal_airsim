@@ -5,7 +5,7 @@ add_definitions(-std=c++17)
 # Setup Airsim
 include(AirsimPath.txt)
 # To create the above file, navigate to the directory containing this CMakeLists.txt file and then run:
-# echo "set(AIRSIM_ROOT $HOME/[path to AirSim install dir]" > ./AirsimPath.txt
+# echo "set(AIRSIM_ROOT $HOME/[path to your AirSim install directory])" > ./AirsimPath.txt
 # Be sure to replace [path to AirSim install dir] with the actual path where you installed your copy of AirSim.
 
 # We add all these sources so they can be compiled with e.g. gcc, since the Airsim(Plugin) binaries need to be compiled
