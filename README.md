@@ -66,7 +66,12 @@ This repo was developed on a desktop-full version of [ROS melodic](http://wiki.r
     wstool init . ./unreal_airsim/unreal_airsim_ssh.rosinstall
     wstool update
     ```
-* In `CMakeLists.txt`, change the airsim root path in line 7 to the directory where you installed airsim `set(AIRSIM_ROOT /where/to/install/AirSim)`.
+* Tell `unreal_airsim` where you installed AirSim by running:
+    ```shell script
+    cd ~/catkin_ws/src/unreal_airsim
+    echo "set(AIRSIM_ROOT $HOME/catkin_ws/src/AirSim)" > ./AirsimPath.txt
+    ```
+  In case you didn't install AirSim in your `~/catkin_ws/src` folder, don't forget to replace the above `$HOME/catkin_ws/src/AirSim` path with the path to the alternative location your chose.
 
 * Build:
     ```shell script
