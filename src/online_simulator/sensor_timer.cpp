@@ -124,6 +124,11 @@ void SensorTimer::processCameras() {
           transformStamped.transform.rotation.w = rotation.w();
           parent_->getFrameConverter().airsimToRos(
               &(transformStamped.transform.translation));
+          
+          transformStamped =
+              parent_->getOdometryDriftSimulator()
+                  ->convertGroundTruthToDriftedPoseMsg(transformStamped);
+
           tf_broadcaster_.sendTransform(transformStamped);
         }
 
@@ -185,6 +190,11 @@ void SensorTimer::processLidars() {
       transformStamped.transform.rotation.z = lidar_data.pose.orientation.z();
       transformStamped.transform.rotation.w = lidar_data.pose.orientation.w();
       parent_->getFrameConverter().airsimToRos(&(transformStamped.transform));
+
+      transformStamped =
+          parent_->getOdometryDriftSimulator()
+              ->convertGroundTruthToDriftedPoseMsg(transformStamped);
+
       tf_broadcaster_.sendTransform(transformStamped);
     }
     lidar_pubs_[i].publish(msg);
