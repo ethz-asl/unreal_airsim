@@ -5,11 +5,11 @@
 #include <vector>
 
 #include <cv_bridge/cv_bridge.h>
+#include <geometry_msgs/TransformStamped.h>
 #include <glog/logging.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <geometry_msgs/TransformStamped.h>
 
 #include "unreal_airsim/online_simulator/simulator.h"
 
@@ -27,7 +27,9 @@ SensorTimer::SensorTimer(const ros::NodeHandle& nh, double rate,
   timer_ = nh_.createTimer(ros::Duration(1.0 / rate),
                            &SensorTimer::timerCallback, this);
   if (parent_->getConfig().publish_sensor_ground_truth_transforms) {
-    transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>("sensor_ground_truth_transforms", 100);
+    transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
+        parent_->getConfig().vehicle_name + "sensor_ground_truth_transforms",
+        100);
   }
 }
 
@@ -115,7 +117,8 @@ void SensorTimer::processCameras() {
           transformStamped.header.stamp = timestamp;
           transformStamped.header.frame_id =
               parent_->getConfig().simulator_frame_name;
-          transformStamped.child_frame_id = camera_frame_names_[i] + "_ground_truth";
+          transformStamped.child_frame_id =
+              camera_frame_names_[i] + "_ground_truth";
           transformStamped.transform.translation.x =
               responses[i].camera_position[0];
           transformStamped.transform.translation.y =
