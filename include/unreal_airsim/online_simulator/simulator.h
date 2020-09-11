@@ -50,7 +50,7 @@ class AirsimSimulator {
                                                           // fixed
 
     // sensors
-    bool publish_sensor_transforms =
+    bool publish_sensor_ground_truth_transforms =
         true;  // true: use gt transforms, false: use static mounting transform
     struct Sensor {
       inline static const std::string TYPE_CAMERA = "Camera";
