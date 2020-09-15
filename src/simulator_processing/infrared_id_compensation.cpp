@@ -4,8 +4,8 @@
 
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
-#include <sensor_msgs/PointCloud2.h>
 
+#include "3rd_party/csv.h"
 #include "unreal_airsim/online_simulator/simulator.h"
 
 namespace unreal_airsim::simulator_processor {
@@ -26,6 +26,24 @@ bool InfraredIdCompensation::setupFromRos(const ros::NodeHandle& nh,
         << "InfraredIdCompensation requires the 'output_topic' to be set.";
     return false;
   }
+  if (nh_.hasParam(ns + "correction_file")) {
+    // Allow reading the corrections from file
+    std::string correction_file;
+    nh_.getParam(ns + "correction_file", correction_file);
+    io::CSVReader<2> in(correction_file);
+    in.read_header(io::ignore_extra_column, "MeshID", "InfraRedID");
+    int mesh, ir;
+    std::fill_n(infrared_compensation_, 256, 255);
+    int previous = -1;
+    while (in.read_row(mesh, ir)) {
+      if (ir > previous) {
+        infrared_compensation_[ir] = mesh;
+        previous = ir;
+      }
+    }
+    LOG(INFO) << "Read infrared corrections from file '" << correction_file
+              << "'.";
+  }
   std::string input_topic, output_topic;
   nh_.getParam(ns + "input_topic", input_topic);
   nh_.getParam(ns + "output_topic", output_topic);
@@ -39,8 +57,8 @@ void InfraredIdCompensation::imageCallback(const sensor_msgs::ImagePtr& msg) {
   cv_bridge::CvImagePtr img = cv_bridge::toCvCopy(msg, msg->encoding);
   for (int v = 0; v < img->image.rows; v++) {
     for (int u = 0; u < img->image.cols; u++) {
-      auto& seg = img->image.at<cv::Vec3b>(v, u);
-      seg[0] = infrared_compensation_[seg[0]];
+      img->image.at<uchar>(v, u) =
+          infrared_compensation_[img->image.at<uchar>(v, u)];
     }
   }
   pub_.publish(img->toImageMsg());

@@ -306,8 +306,7 @@ void DepthToPointcloud::publishPointcloud(
       }
 
       if (use_segmentation_) {
-        cv::Vec3b seg = segmentation_img->image.at<cv::Vec3b>(v, u);
-        (*out_seg)[0] = seg[0];
+        (*out_seg)[0] = segmentation_img->image.at<uchar>(v, u);
         ++(*out_seg);
       }
     }
