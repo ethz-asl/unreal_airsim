@@ -26,7 +26,7 @@ SensorTimer::SensorTimer(const ros::NodeHandle& nh, double rate,
       parent_(parent) {
   timer_ = nh_.createTimer(ros::Duration(1.0 / rate),
                            &SensorTimer::timerCallback, this);
-  if (parent_->getConfig().publish_sensor_ground_truth_transforms) {
+  if (parent_->getConfig().publish_sensor_transforms) {
     transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
         parent_->getConfig().vehicle_name + "sensor_ground_truth_transforms",
         100);
