@@ -8,12 +8,21 @@ OdometryDriftSimulator::OdometryDriftSimulator(Config config)
     : config_(config.checkValid()),
       started_publishing_(false),
       velocity_noise_sampling_period_(1.f / config.velocity_noise_frequency_hz),
-      current_linear_velocity_noise_sample_W_(Transformation::Vector3::Zero()),
-      current_angular_velocity_noise_sample_W_(Transformation::Vector3::Zero()),
       velocity_noise_(config.velocity_noise),
       pose_noise_(config.pose_noise) {
+  reset();
   VLOG(1) << "Initialized drifting odometry simulator, with config:\n"
           << config_;
+}
+
+void OdometryDriftSimulator::reset() {
+  last_velocity_noise_sampling_time_ = ros::Time();
+  current_linear_velocity_noise_sample_W_.setZero();
+  current_angular_velocity_noise_sample_W_.setZero();
+  integrated_pose_drift_.setIdentity();
+  current_pose_noise_.setIdentity();
+  current_simulated_pose_.setIdentity();
+  last_ground_truth_pose_msg_ = geometry_msgs::TransformStamped();
 }
 
 void OdometryDriftSimulator::tick(
@@ -66,21 +75,11 @@ void OdometryDriftSimulator::tick(
   Transformation::Vector6 pose_noise_B_vec;
   pose_noise_B_vec << pose_noise_.x(), pose_noise_.y(), pose_noise_.z(),
       pose_noise_.roll(), pose_noise_.pitch(), pose_noise_.yaw();
-  const Transformation current_pose_noise_B =
-      Transformation::exp(pose_noise_B_vec);
+  current_pose_noise_ = Transformation::exp(pose_noise_B_vec);
 
   // Update the current simulated pose
   current_simulated_pose_ =
-      integrated_pose_drift_ * ground_truth_pose * current_pose_noise_B;
-}
-
-void OdometryDriftSimulator::reset() {
-  last_velocity_noise_sampling_time_ = ros::Time();
-  current_linear_velocity_noise_sample_W_.setZero();
-  current_angular_velocity_noise_sample_W_.setZero();
-  integrated_pose_drift_.setIdentity();
-  current_simulated_pose_.setIdentity();
-  last_ground_truth_pose_msg_ = geometry_msgs::TransformStamped();
+      integrated_pose_drift_ * ground_truth_pose * current_pose_noise_;
 }
 
 OdometryDriftSimulator::Transformation
@@ -97,6 +96,47 @@ geometry_msgs::TransformStamped OdometryDriftSimulator::getSimulatedPoseMsg()
       last_ground_truth_pose_msg_;
   tf::transformKindrToMsg(current_simulated_pose_,
                           &simulated_pose_msg.transform);
+  return simulated_pose_msg;
+}
+
+OdometryDriftSimulator::Transformation
+OdometryDriftSimulator::convertDriftedToGroundTruthPose(
+    const OdometryDriftSimulator::Transformation& simulated_pose) const {
+  return integrated_pose_drift_.inverse() * simulated_pose *
+         current_pose_noise_.inverse();
+}
+
+OdometryDriftSimulator::Transformation
+OdometryDriftSimulator::convertGroundTruthToDriftedPose(
+    const OdometryDriftSimulator::Transformation& ground_truth_pose) const {
+  return integrated_pose_drift_ * ground_truth_pose * current_pose_noise_;
+}
+
+geometry_msgs::TransformStamped
+OdometryDriftSimulator::convertDriftedToGroundTruthPoseMsg(
+    const geometry_msgs::TransformStamped& simulated_pose_msg) const {
+  Transformation simulated_pose;
+  tf::transformMsgToKindr(simulated_pose_msg.transform, &simulated_pose);
+
+  const Transformation ground_truth_pose =
+      convertDriftedToGroundTruthPose(simulated_pose);
+
+  geometry_msgs::TransformStamped ground_truth_pose_msg = simulated_pose_msg;
+  tf::transformKindrToMsg(ground_truth_pose, &ground_truth_pose_msg.transform);
+  return ground_truth_pose_msg;
+}
+
+geometry_msgs::TransformStamped
+OdometryDriftSimulator::convertGroundTruthToDriftedPoseMsg(
+    const geometry_msgs::TransformStamped& ground_truth_pose_msg) const {
+  Transformation ground_truth_pose;
+  tf::transformMsgToKindr(ground_truth_pose_msg.transform, &ground_truth_pose);
+
+  const Transformation simulated_pose =
+      convertGroundTruthToDriftedPose(ground_truth_pose);
+
+  geometry_msgs::TransformStamped simulated_pose_msg = ground_truth_pose_msg;
+  tf::transformKindrToMsg(simulated_pose, &simulated_pose_msg.transform);
   return simulated_pose_msg;
 }
 

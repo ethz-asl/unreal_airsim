@@ -98,6 +98,9 @@ class AirsimSimulator {
   const Config& getConfig() const { return config_; }
   const FrameConverter& getFrameConverter() const { return frame_converter_; }
   ros::Time getTimeStamp(msr::airlib::TTimePoint airsim_stamp);
+  OdometryDriftSimulator* getOdometryDriftSimulator() {
+    return &odometry_drift_simulator_;
+  }
 
  protected:
   // ROS
@@ -142,7 +145,6 @@ class AirsimSimulator {
   bool is_shutdown_;  // After setting is shutdown no more airsim requests are
                       // allowed.
   bool use_sim_time_;  // Publish ros time based on the airsim clock
-  Eigen::Vector3d current_position_;  // Current position of the drone
 
   // setup methods
   bool setupAirsim();  // Connect to Airsim and verify

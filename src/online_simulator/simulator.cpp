@@ -401,24 +401,35 @@ void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose& msg) {
   if (!is_running_) {
     return;
   }
-  // Input pose is in simulator (odom) frame, use position + yaw as setpoint
-  auto pos = Eigen::Vector3d(msg.position.x, msg.position.y, msg.position.z);
-  auto ori = Eigen::Quaterniond(msg.orientation.w, msg.orientation.x,
-                                msg.orientation.y, msg.orientation.z);
-  frame_converter_.rosToAirsim(&ori);
-  double yaw = tf2::getYaw(tf2::Quaternion(
-      ori.x(), ori.y(), ori.z(), ori.w()));  // Eigen's eulerAngles apparently
+
+  // Input pose is in drifting odom frame, we therefore
+  // first convert it back into Unreal GT frame
+  OdometryDriftSimulator::Transformation T_drift_command;
+  tf::poseMsgToKindr(msg, &T_drift_command);
+  const OdometryDriftSimulator::Transformation T_gt_command =
+      odometry_drift_simulator_.convertDriftedToGroundTruthPose(
+          T_drift_command);
+  OdometryDriftSimulator::Transformation::Position t_gt_current_position =
+      odometry_drift_simulator_.getGroundTruthPose().getPosition();
+
+  // Use position + yaw as setpoint
+  auto command_pos = T_gt_command.getPosition();
+  auto command_ori = T_gt_command.getEigenQuaternion();
+  frame_converter_.rosToAirsim(&command_ori);
+  double yaw = tf2::getYaw(
+      tf2::Quaternion(command_ori.x(), command_ori.y(), command_ori.z(),
+                      command_ori.w()));  // Eigen's eulerAngles apparently
   // messes up some wrap arounds or direcions and gets the wrong yaws in some
   // cases
   yaw = yaw / M_PI * 180.0;
   constexpr double kMinMovingDistance = 0.1;  // m
   airsim_move_client_.cancelLastTask();
-  if ((pos - current_position_).norm() >= kMinMovingDistance) {
-    frame_converter_.rosToAirsim(&pos);
+  if ((command_pos - t_gt_current_position).norm() >= kMinMovingDistance) {
+    frame_converter_.rosToAirsim(&command_pos);
     auto yaw_mode = msr::airlib::YawMode(false, yaw);
     airsim_move_client_.moveToPositionAsync(
-        pos.x(), pos.y(), pos.z(), config_.velocity, 3600,
-        config_.drive_train_type, yaw_mode, -1, 1, config_.vehicle_name);
+        command_pos.x(), command_pos.y(), command_pos.z(), config_.velocity,
+        3600, config_.drive_train_type, yaw_mode, -1, 1, config_.vehicle_name);
   } else {
     // This second command catches the case if the total distance is too small,
     // where the moveToPosition command returns without satisfying the yaw. If
@@ -532,8 +543,6 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
 
   // simulate odometry drift
   odometry_drift_simulator_.tick(transformStamped);
-  current_position_ =
-      odometry_drift_simulator_.getSimulatedPose().getPosition();
 
   // publish TFs, odom msgs and pose msgs
   odometry_drift_simulator_.publishTfs();
