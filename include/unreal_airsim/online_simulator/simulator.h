@@ -50,8 +50,10 @@ class AirsimSimulator {
                                                           // fixed
 
     // sensors
-    bool publish_sensor_ground_truth_transforms =
-        true;  // true: use gt transforms, false: use static mounting transform
+    bool publish_sensor_transforms = true;  // publish transforms when receiving
+    // sensor measurements to guarantee correct tfs.
+    // TODO(schmluk): This is mostly a time syncing problem, maybe easiest to
+    //  publish the body pose based on these readings.
     struct Sensor {
       inline static const std::string TYPE_CAMERA = "Camera";
       inline static const std::string TYPE_LIDAR = "Lidar";

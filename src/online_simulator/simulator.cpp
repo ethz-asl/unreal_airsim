@@ -77,9 +77,9 @@ bool AirsimSimulator::readParamsFromRos() {
   nh_private_.param("vehicle_name", config_.vehicle_name,
                     defaults.vehicle_name);
   nh_private_.param("velocity", config_.velocity, defaults.velocity);
-  nh_private_.param("publish_sensor_ground_truth_transforms",
-                    config_.publish_sensor_ground_truth_transforms,
-                    defaults.publish_sensor_ground_truth_transforms);
+  nh_private_.param("publish_sensor_transforms",
+                    config_.publish_sensor_transforms,
+                    defaults.publish_sensor_transforms);
 
   // Verify params valid
   if (config_.state_refresh_rate <= 0.0) {

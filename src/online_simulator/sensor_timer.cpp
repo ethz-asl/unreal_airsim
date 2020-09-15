@@ -104,7 +104,7 @@ void SensorTimer::processCameras() {
         msg->header.frame_id = camera_frame_names_[i];
 
         // Ground truth transforms.
-        if (parent_->getConfig().publish_sensor_ground_truth_transforms) {
+        if (parent_->getConfig().publish_sensor_transforms) {
           auto rotation =
               Eigen::Quaterniond(responses[i].camera_orientation.w(),
                                  responses[i].camera_orientation.x(),
@@ -117,8 +117,6 @@ void SensorTimer::processCameras() {
           transformStamped.header.stamp = timestamp;
           transformStamped.header.frame_id =
               parent_->getConfig().simulator_frame_name;
-          transformStamped.child_frame_id =
-              camera_frame_names_[i] + "_ground_truth";
           transformStamped.transform.translation.x =
               responses[i].camera_position[0];
           transformStamped.transform.translation.y =
@@ -131,11 +129,17 @@ void SensorTimer::processCameras() {
           transformStamped.transform.rotation.w = rotation.w();
           parent_->getFrameConverter().airsimToRos(
               &(transformStamped.transform.translation));
-          
+          // Publish the ground truth transform.
+          transformStamped.child_frame_id =
+              camera_frame_names_[i] + "_ground_truth";
+          tf_broadcaster_.sendTransform(transformStamped);
+          transform_pub_.publish(transformStamped);
+
+          // Publish the robot transform, use both for naming consistency.
           transformStamped =
               parent_->getOdometryDriftSimulator()
                   ->convertGroundTruthToDriftedPoseMsg(transformStamped);
-
+          transformStamped.child_frame_id = camera_frame_names_[i];
           tf_broadcaster_.sendTransform(transformStamped);
           transform_pub_.publish(transformStamped);
         }
@@ -184,7 +188,7 @@ void SensorTimer::processLidars() {
     msg->data = std::move(lidar_msg_data);
 
     // Ground truth transform
-    if (parent_->getConfig().publish_sensor_ground_truth_transforms) {
+    if (parent_->getConfig().publish_sensor_transforms) {
       geometry_msgs::TransformStamped transformStamped;
       transformStamped.header.stamp = msg->header.stamp;
       transformStamped.header.frame_id =
@@ -198,11 +202,14 @@ void SensorTimer::processLidars() {
       transformStamped.transform.rotation.z = lidar_data.pose.orientation.z();
       transformStamped.transform.rotation.w = lidar_data.pose.orientation.w();
       parent_->getFrameConverter().airsimToRos(&(transformStamped.transform));
+      tf_broadcaster_.sendTransform(transformStamped);
+      transform_pub_.publish(transformStamped);
 
+      // Robot frame transform.
       transformStamped =
           parent_->getOdometryDriftSimulator()
               ->convertGroundTruthToDriftedPoseMsg(transformStamped);
-
+      transformStamped.child_frame_id = lidar_frame_names_[i];
       tf_broadcaster_.sendTransform(transformStamped);
       transform_pub_.publish(transformStamped);
     }
