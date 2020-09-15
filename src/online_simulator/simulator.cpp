@@ -300,7 +300,7 @@ bool AirsimSimulator::setupROS() {
       timer = sensor_timers_.back().get();
     }
     timer->addSensor(*this, i);
-    // Broadcast asll sensor mounting transforms vai static tf.
+    // Broadcast all sensor mounting transforms via static tf.
     geometry_msgs::TransformStamped static_transformStamped;
     Eigen::Quaterniond rotation = config_.sensors[i]->rotation;
     if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA) {
