@@ -3,6 +3,7 @@
 
 #include <ros/ros.h>
 #include <random>
+#include <string>
 
 #include <glog/logging.h>
 

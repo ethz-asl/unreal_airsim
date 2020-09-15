@@ -43,6 +43,7 @@ class SensorTimer {
   std::string vehicle_name_;
   ros::NodeHandle nh_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
+  ros::Publisher transform_pub_;
 
   // methods
   void processCameras();

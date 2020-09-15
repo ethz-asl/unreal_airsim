@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <cv_bridge/cv_bridge.h>
+#include <geometry_msgs/TransformStamped.h>
 #include <glog/logging.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>
@@ -25,6 +26,11 @@ SensorTimer::SensorTimer(const ros::NodeHandle& nh, double rate,
       parent_(parent) {
   timer_ = nh_.createTimer(ros::Duration(1.0 / rate),
                            &SensorTimer::timerCallback, this);
+  if (parent_->getConfig().publish_sensor_ground_truth_transforms) {
+    transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
+        parent_->getConfig().vehicle_name + "sensor_ground_truth_transforms",
+        100);
+  }
 }
 
 double SensorTimer::getRate() const { return rate_; }
@@ -113,7 +119,7 @@ void SensorTimer::processCameras() {
         msg->header.stamp = timestamp;
         msg->header.frame_id = camera_frame_names_[i];
 
-        // Ground truth transform
+        // Ground truth transforms.
         if (parent_->getConfig().publish_sensor_transforms) {
           auto rotation =
               Eigen::Quaterniond(responses[i].camera_orientation.w(),
@@ -127,7 +133,6 @@ void SensorTimer::processCameras() {
           transformStamped.header.stamp = timestamp;
           transformStamped.header.frame_id =
               parent_->getConfig().simulator_frame_name;
-          transformStamped.child_frame_id = camera_frame_names_[i];
           transformStamped.transform.translation.x =
               responses[i].camera_position[0];
           transformStamped.transform.translation.y =
@@ -140,12 +145,19 @@ void SensorTimer::processCameras() {
           transformStamped.transform.rotation.w = rotation.w();
           parent_->getFrameConverter().airsimToRos(
               &(transformStamped.transform.translation));
-          
+          // Publish the ground truth transform.
+          transformStamped.child_frame_id =
+              camera_frame_names_[i] + "_ground_truth";
+          tf_broadcaster_.sendTransform(transformStamped);
+          transform_pub_.publish(transformStamped);
+
+          // Publish the robot transform, use both for naming consistency.
           transformStamped =
               parent_->getOdometryDriftSimulator()
                   ->convertGroundTruthToDriftedPoseMsg(transformStamped);
-
+          transformStamped.child_frame_id = camera_frame_names_[i];
           tf_broadcaster_.sendTransform(transformStamped);
+          transform_pub_.publish(transformStamped);
         }
 
         camera_pubs_[i].publish(msg);
@@ -197,7 +209,7 @@ void SensorTimer::processLidars() {
       transformStamped.header.stamp = msg->header.stamp;
       transformStamped.header.frame_id =
           parent_->getConfig().simulator_frame_name;
-      transformStamped.child_frame_id = lidar_frame_names_[i];
+      transformStamped.child_frame_id = lidar_frame_names_[i] + "_ground_truth";
       transformStamped.transform.translation.x = lidar_data.pose.position[0];
       transformStamped.transform.translation.y = lidar_data.pose.position[1];
       transformStamped.transform.translation.z = lidar_data.pose.position[2];
@@ -206,12 +218,16 @@ void SensorTimer::processLidars() {
       transformStamped.transform.rotation.z = lidar_data.pose.orientation.z();
       transformStamped.transform.rotation.w = lidar_data.pose.orientation.w();
       parent_->getFrameConverter().airsimToRos(&(transformStamped.transform));
+      tf_broadcaster_.sendTransform(transformStamped);
+      transform_pub_.publish(transformStamped);
 
+      // Robot frame transform.
       transformStamped =
           parent_->getOdometryDriftSimulator()
               ->convertGroundTruthToDriftedPoseMsg(transformStamped);
-
+      transformStamped.child_frame_id = lidar_frame_names_[i];
       tf_broadcaster_.sendTransform(transformStamped);
+      transform_pub_.publish(transformStamped);
     }
     lidar_pubs_[i].publish(msg);
   }
