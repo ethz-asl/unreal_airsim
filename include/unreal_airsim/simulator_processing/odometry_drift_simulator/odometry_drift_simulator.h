@@ -53,8 +53,8 @@ class OdometryDriftSimulator {
     reset();
     started_publishing_ = true;
   }
-  void tick(const geometry_msgs::TransformStamped& ground_truth_pose_msg);
   void reset();
+  void tick(const geometry_msgs::TransformStamped& ground_truth_pose_msg);
 
   Transformation getSimulatedPose() const { return current_simulated_pose_; }
   Transformation getGroundTruthPose() const;
@@ -62,6 +62,15 @@ class OdometryDriftSimulator {
   geometry_msgs::TransformStamped getGroundTruthPoseMsg() const {
     return last_ground_truth_pose_msg_;
   }
+
+  Transformation convertDriftedToGroundTruthPose(
+      const Transformation& simulated_pose) const;
+  Transformation convertGroundTruthToDriftedPose(
+      const Transformation& ground_truth_pose) const;
+  geometry_msgs::TransformStamped convertDriftedToGroundTruthPoseMsg(
+      const geometry_msgs::TransformStamped& simulated_pose_msg) const;
+  geometry_msgs::TransformStamped convertGroundTruthToDriftedPoseMsg(
+      const geometry_msgs::TransformStamped& ground_truth_pose_msg) const;
 
   void publishTfs() const;
 
@@ -76,6 +85,7 @@ class OdometryDriftSimulator {
   Transformation::Vector3 current_linear_velocity_noise_sample_W_;
   Transformation::Vector3 current_angular_velocity_noise_sample_W_;
   Transformation integrated_pose_drift_;
+  Transformation current_pose_noise_;
   Transformation current_simulated_pose_;
   geometry_msgs::TransformStamped last_ground_truth_pose_msg_;
 
