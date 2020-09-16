@@ -300,34 +300,36 @@ bool AirsimSimulator::setupROS() {
       timer = sensor_timers_.back().get();
     }
     timer->addSensor(*this, i);
-    // Broadcast all sensor mounting transforms via static tf.
-    geometry_msgs::TransformStamped static_transformStamped;
-    Eigen::Quaterniond rotation = config_.sensors[i]->rotation;
-    if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA) {
-      // Camera frames are x right, y down, z depth
-      rotation = Eigen::Quaterniond(0.5, -0.5, 0.5, -0.5) * rotation;
-      auto camera = (Config::Camera*)config_.sensors[i].get();
-      // This assumes the camera exists, which should always be the case with
-      // the auto-generated-config.
-      camera->camera_info = airsim_move_client_.simGetCameraInfo(
-          camera->name, config_.vehicle_name);
-      // TODO(Schmluk): Might want to also publish the camera info or convert to
-      // intrinsics etc
+    if (!config_.publish_sensor_transforms) {
+      // Broadcast all sensor mounting transforms via static tf.
+      geometry_msgs::TransformStamped static_transformStamped;
+      Eigen::Quaterniond rotation = config_.sensors[i]->rotation;
+      if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA) {
+        // Camera frames are x right, y down, z depth
+        rotation = Eigen::Quaterniond(0.5, -0.5, 0.5, -0.5) * rotation;
+        auto camera = (Config::Camera*)config_.sensors[i].get();
+        // This assumes the camera exists, which should always be the case with
+        // the auto-generated-config.
+        camera->camera_info = airsim_move_client_.simGetCameraInfo(
+            camera->name, config_.vehicle_name);
+        // TODO(Schmluk): Might want to also publish the camera info or convert
+        // to intrinsics etc
+      }
+      static_transformStamped.header.stamp = ros::Time::now();
+      static_transformStamped.header.frame_id = config_.vehicle_name;
+      static_transformStamped.child_frame_id = config_.sensors[i]->frame_name;
+      static_transformStamped.transform.translation.x =
+          config_.sensors[i]->translation.x();
+      static_transformStamped.transform.translation.y =
+          config_.sensors[i]->translation.y();
+      static_transformStamped.transform.translation.z =
+          config_.sensors[i]->translation.z();
+      static_transformStamped.transform.rotation.x = rotation.x();
+      static_transformStamped.transform.rotation.y = rotation.y();
+      static_transformStamped.transform.rotation.z = rotation.z();
+      static_transformStamped.transform.rotation.w = rotation.w();
+      static_tf_broadcaster_.sendTransform(static_transformStamped);
     }
-    static_transformStamped.header.stamp = ros::Time::now();
-    static_transformStamped.header.frame_id = config_.vehicle_name;
-    static_transformStamped.child_frame_id = config_.sensors[i]->frame_name;
-    static_transformStamped.transform.translation.x =
-        config_.sensors[i]->translation.x();
-    static_transformStamped.transform.translation.y =
-        config_.sensors[i]->translation.y();
-    static_transformStamped.transform.translation.z =
-        config_.sensors[i]->translation.z();
-    static_transformStamped.transform.rotation.x = rotation.x();
-    static_transformStamped.transform.rotation.y = rotation.y();
-    static_transformStamped.transform.rotation.z = rotation.z();
-    static_transformStamped.transform.rotation.w = rotation.w();
-    static_tf_broadcaster_.sendTransform(static_transformStamped);
   }
 
   // Simulator processors (find names and let them create themselves)
