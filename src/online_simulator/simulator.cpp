@@ -1,33 +1,25 @@
 #include "unreal_airsim/online_simulator/simulator.h"
 
+#include <chrono>
+#include <csignal>
+#include <functional>
+#include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
-
-#include "unreal_airsim/simulator_processing/processor_factory.h"
-
-STRICT_MODE_OFF
-#ifndef RPCLIB_MSGPACK
-#define RPCLIB_MSGPACK clmdep_msgpack
-#endif  // !RPCLIB_MSGPACK
-#include "rpc/rpc_error.h"
-STRICT_MODE_ON
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <glog/logging.h>
 #include <minkindr_conversions/kindr_msg.h>
+#include <minkindr_conversions/kindr_xml.h>
 #include <nav_msgs/Odometry.h>
 #include <rosgraph_msgs/Clock.h>
 #include <std_msgs/Bool.h>
 #include <tf2/utils.h>
 
-#include <glog/logging.h>
-
-#include <chrono>
-#include <csignal>
-#include <functional>
-#include <iostream>
-#include <thread>
+#include "unreal_airsim/simulator_processing/processor_factory.h"
 
 namespace unreal_airsim {
 
@@ -77,9 +69,6 @@ bool AirsimSimulator::readParamsFromRos() {
   nh_private_.param("vehicle_name", config_.vehicle_name,
                     defaults.vehicle_name);
   nh_private_.param("velocity", config_.velocity, defaults.velocity);
-  nh_private_.param("publish_sensor_transforms",
-                    config_.publish_sensor_transforms,
-                    defaults.publish_sensor_transforms);
 
   // Verify params valid
   if (config_.state_refresh_rate <= 0.0) {
@@ -204,8 +193,9 @@ bool AirsimSimulator::readParamsFromRos() {
     } else {
       sensor_cfg->rate = rate;
     }
-    readTransformFromRos(sensor_ns + name + "/T_B_S",
-                         &(sensor_cfg->translation), &(sensor_cfg->rotation));
+    XmlRpc::XmlRpcValue xml_value;
+    nh_private_.param(sensor_ns + name + "/T_B_S", xml_value, xml_value);
+    kindr::minimal::xmlRpcToKindr(xml_value, &(sensor_cfg->T_B_S));
     config_.sensors.push_back(std::unique_ptr<Config::Sensor>(sensor_cfg));
   }
   return true;
@@ -235,12 +225,7 @@ bool AirsimSimulator::setupAirsim() {
   bool versions_matching =
       true;  // Check both in one run to spare running into the issue twice
   int server_ver = 0;
-  try {
-    server_ver = airsim_state_client_.getServerVersion();
-  } catch (rpc::rpc_error& e) {
-    auto msg = e.get_error().as<std::string>();
-    std::cout << "Lukas' RPC catch:" << std::endl << msg << std::endl;
-  }
+  server_ver = airsim_state_client_.getServerVersion();
   int client_ver = airsim_state_client_.getClientVersion();
   int server_min_ver = airsim_state_client_.getMinRequiredServerVersion();
   int client_min_ver = airsim_state_client_.getMinRequiredClientVersion();
@@ -302,10 +287,13 @@ bool AirsimSimulator::setupROS() {
     timer->addSensor(*this, i);
     // Broadcast all sensor mounting transforms via static tf.
     geometry_msgs::TransformStamped static_transformStamped;
-    Eigen::Quaterniond rotation = config_.sensors[i]->rotation;
+    kindr::minimal::QuatTransformationTemplate<double> T_B_S =
+        config_.sensors[i]->T_B_S;
     if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA) {
       // Camera frames are x right, y down, z depth
-      rotation = Eigen::Quaterniond(0.5, -0.5, 0.5, -0.5) * rotation;
+      kindr::minimal::QuatTransformationTemplate<double> T_S_C(
+          Eigen::Vector3d(), Eigen::Quaterniond(0.5, -0.5, 0.5, -0.5));
+      T_B_S = T_B_S * T_S_C;
       auto camera = (Config::Camera*)config_.sensors[i].get();
       // This assumes the camera exists, which should always be the case with
       // the auto-generated-config.
@@ -317,17 +305,18 @@ bool AirsimSimulator::setupROS() {
     static_transformStamped.header.stamp = ros::Time::now();
     static_transformStamped.header.frame_id = config_.vehicle_name;
     static_transformStamped.child_frame_id = config_.sensors[i]->frame_name;
-    static_transformStamped.transform.translation.x =
-        config_.sensors[i]->translation.x();
-    static_transformStamped.transform.translation.y =
-        config_.sensors[i]->translation.y();
-    static_transformStamped.transform.translation.z =
-        config_.sensors[i]->translation.z();
-    static_transformStamped.transform.rotation.x = rotation.x();
-    static_transformStamped.transform.rotation.y = rotation.y();
-    static_transformStamped.transform.rotation.z = rotation.z();
-    static_transformStamped.transform.rotation.w = rotation.w();
+    tf::transformKindrToMsg(T_B_S, &(static_transformStamped.transform));
     static_tf_broadcaster_.sendTransform(static_transformStamped);
+
+    if (odometry_drift_simulator_.getConfig().publish_ground_truth_pose) {
+      // If we use the odometry drift simulator and publish ground truth poses
+      // also publish the transform for the ground truth.
+      static_transformStamped.header.frame_id +=
+          odometry_drift_simulator_.getConfig().ground_truth_frame_suffix;
+      static_transformStamped.child_frame_id +=
+          odometry_drift_simulator_.getConfig().ground_truth_frame_suffix;
+      static_tf_broadcaster_.sendTransform(static_transformStamped);
+    }
   }
 
   // Simulator processors (find names and let them create themselves)
@@ -540,12 +529,9 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
       state.kinematics_estimated.pose.orientation.cast<double>(),
       transformStamped.transform.rotation);
   frame_converter_.airsimToRos(&transformStamped.transform);
+  publishState(transformStamped);
 
-  // simulate odometry drift
-  odometry_drift_simulator_.tick(transformStamped);
-
-  // publish TFs, odom msgs and pose msgs
-  odometry_drift_simulator_.publishTfs();
+  // Also publish odometry if required. Odometry drift only applies to the pose.
   if (odom_pub_.getNumSubscribers() > 0) {
     nav_msgs::Odometry odom_msg;
     odom_msg.header.stamp = stamp;
@@ -554,7 +540,6 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
 
     tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(),
                        &odom_msg.pose.pose);
-
     odom_msg.twist.twist.linear.x = state.kinematics_estimated.twist.linear.x();
     odom_msg.twist.twist.linear.y = state.kinematics_estimated.twist.linear.y();
     odom_msg.twist.twist.linear.z = state.kinematics_estimated.twist.linear.z();
@@ -567,83 +552,44 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
     // TODO(schmluk): verify that these twist conversions work as intended
     frame_converter_.airsimToRos(&odom_msg.twist.twist.linear);
     frame_converter_.airsimToRos(&odom_msg.twist.twist.angular);
-
     odom_pub_.publish(odom_msg);
-  }
-  if (pose_pub_.getNumSubscribers() > 0) {
-    geometry_msgs::PoseStamped pose_msg;
-    pose_msg.header.stamp = stamp;
-    pose_msg.header.frame_id = config_.simulator_frame_name;
-    tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(),
-                       &pose_msg.pose);
-    pose_pub_.publish(pose_msg);
   }
 
   // collision (the CollisionInfo in the state does not get updated for whatever
   // reason)
   if (airsim_state_client_.simGetCollisionInfo(config_.vehicle_name)
           .has_collided) {
-    LOG(WARNING) << "Collision detected for '" << config_.vehicle_name << "'!";
+    int logging_freq = std::ceil(config_.state_refresh_rate / 0.5);
+    LOG_EVERY_N(WARNING, logging_freq)
+        << "Collision detected for '" << config_.vehicle_name << "'!";
     std_msgs::Bool msg;
     msg.data = true;
     collision_pub_.publish(msg);
   }
 }
 
-bool AirsimSimulator::readTransformFromRos(const std::string& topic,
-                                           Eigen::Vector3d* translation,
-                                           Eigen::Quaterniond* rotation) {
-  // This is implemented separately to catch all exceptions when parsing xmlrpc
-  // defaults: Unit transformation
-  *translation = Eigen::Vector3d();
-  *rotation = Eigen::Quaterniond(1, 0, 0, 0);
-  if (!nh_private_.hasParam(topic)) {
-    return false;
+void AirsimSimulator::publishState(
+    const geometry_msgs::TransformStamped& transform) {
+  // transform is from simulator to robot in ROS frames, timestamp is required.
+  // Only run if there is new information.
+  if (last_state_published_ >= transform.header.stamp) {
+    return;
   }
-  XmlRpc::XmlRpcValue matrix;
-  nh_private_.getParam(topic, matrix);
-  if (matrix.getType() != XmlRpc::XmlRpcValue::TypeArray) {
-    LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
-    return false;
-  } else if (matrix.size() != 4) {
-    LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
-    return false;
+
+  // simulate odometry drift.
+  odometry_drift_simulator_.tick(transform);
+
+  // publish TFs, odom msgs and pose msgs
+  odometry_drift_simulator_.publishTfs();
+
+  if (pose_pub_.getNumSubscribers() > 0) {
+    geometry_msgs::PoseStamped pose_msg;
+    pose_msg.header.stamp = transform.header.stamp;
+    pose_msg.header.frame_id = config_.simulator_frame_name;
+    tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(),
+                       &pose_msg.pose);
+    pose_pub_.publish(pose_msg);
   }
-  Eigen::Matrix3d rot_mat;
-  Eigen::Vector3d trans;
-  double val;
-  for (size_t i = 0; i < 3; ++i) {
-    XmlRpc::XmlRpcValue row = matrix[i];
-    if (row.getType() != XmlRpc::XmlRpcValue::TypeArray) {
-      LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
-      return false;
-    } else if (row.size() != 4) {
-      LOG(WARNING) << "Transformation '" << topic << "' expected as 4x4 array.";
-      return false;
-    }
-    for (size_t j = 0; j < 4; ++j) {
-      try {
-        val = row[j];
-      } catch (...) {
-        try {
-          int ival = row[j];
-          val = static_cast<double>(ival);
-        } catch (...) {
-          LOG(WARNING) << "Unable to convert all entries of transformation '"
-                       << topic << "' to double.";
-          return false;
-        }
-      }
-      if (j < 3) {
-        rot_mat(i, j) = val;
-      } else {
-        trans[i] = val;
-      }
-    }
-  }
-  *translation = trans;
-  *rotation = rot_mat;
-  return true;
 }
 
 void AirsimSimulator::onShutdown() {

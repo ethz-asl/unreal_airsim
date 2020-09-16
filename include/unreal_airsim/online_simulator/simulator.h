@@ -6,6 +6,7 @@
 #include <thread>
 #include <vector>
 
+#include <minkindr_conversions/kindr_msg.h>
 #include <ros/ros.h>
 #include <std_msgs/Time.h>
 #include <tf2_ros/static_transform_broadcaster.h>
@@ -50,10 +51,6 @@ class AirsimSimulator {
                                                           // fixed
 
     // sensors
-    bool publish_sensor_transforms = true;  // publish transforms when receiving
-    // sensor measurements to guarantee correct tfs.
-    // TODO(schmluk): This is mostly a time syncing problem, maybe easiest to
-    //  publish the body pose based on these readings.
     struct Sensor {
       inline static const std::string TYPE_CAMERA = "Camera";
       inline static const std::string TYPE_LIDAR = "Lidar";
@@ -67,8 +64,9 @@ class AirsimSimulator {
           false;  // By default all sensors of identical rate are synced into 1
                   // timer, but that can slow down overall performance for a
                   // specific sensor
-      Eigen::Vector3d translation;  // T_B_S, default is unit transform
-      Eigen::Quaterniond rotation;
+
+      kindr::minimal::QuatTransformationTemplate<double> T_B_S;
+      // mounting transform body to sensor.
     };
     struct Camera : Sensor {
       std::string image_type_str = "Scene";
@@ -99,10 +97,14 @@ class AirsimSimulator {
   // Acessors
   const Config& getConfig() const { return config_; }
   const FrameConverter& getFrameConverter() const { return frame_converter_; }
-  ros::Time getTimeStamp(msr::airlib::TTimePoint airsim_stamp);
   OdometryDriftSimulator* getOdometryDriftSimulator() {
     return &odometry_drift_simulator_;
   }
+
+  // Interactions
+  ros::Time getTimeStamp(msr::airlib::TTimePoint airsim_stamp);
+  // transform is from simulator to robot in ROS frames, timestamp is required.
+  void publishState(const geometry_msgs::TransformStamped& transform);
 
  protected:
   // ROS
@@ -147,6 +149,7 @@ class AirsimSimulator {
   bool is_shutdown_;  // After setting is shutdown no more airsim requests are
                       // allowed.
   bool use_sim_time_;  // Publish ros time based on the airsim clock
+  ros::Time last_state_published_;
 
   // setup methods
   bool setupAirsim();  // Connect to Airsim and verify
@@ -157,11 +160,6 @@ class AirsimSimulator {
 
   // methods
   void readSimTimeCallback();
-
-  // helper methods
-  bool readTransformFromRos(const std::string& topic,
-                            Eigen::Vector3d* translation,
-                            Eigen::Quaterniond* rotation);
 };
 
 }  // namespace unreal_airsim

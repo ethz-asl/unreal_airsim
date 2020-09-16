@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include <kindr/minimal/quat-transformation.h>
 #include <ros/ros.h>
 #include <tf2_ros/transform_broadcaster.h>
 
@@ -42,8 +43,6 @@ class SensorTimer {
   ros::Timer timer_;
   std::string vehicle_name_;
   ros::NodeHandle nh_;
-  tf2_ros::TransformBroadcaster tf_broadcaster_;
-  ros::Publisher transform_pub_;
 
   // methods
   void processCameras();
@@ -51,19 +50,29 @@ class SensorTimer {
   void processImus();
 
   // cameras
-  std::vector<ros::Publisher> camera_pubs_;
-  std::vector<std::string> camera_frame_names_;
-  std::vector<msr::airlib::ImageCaptureBase::ImageRequest> image_requests_;
+  struct Sensor {
+    ros::Publisher pub;
+    std::string frame_name;
+  };
+  struct Camera : public Sensor {
+    msr::airlib::ImageCaptureBase::ImageRequest request;
+    kindr::minimal::QuatTransformationTemplate<double> T_S_B;
+  };
+  std::vector<Camera> cameras_;
+  std::vector<msr::airlib::ImageCaptureBase::ImageRequest> camera_requests_;
 
   // lidars
-  std::vector<ros::Publisher> lidar_pubs_;
-  std::vector<std::string> lidar_names_;
-  std::vector<std::string> lidar_frame_names_;
+  struct Lidar : public Sensor {
+    std::string name;
+    kindr::minimal::QuatTransformationTemplate<double> T_S_B;
+  };
+  std::vector<Lidar> lidars_;
 
   // imus
-  std::vector<ros::Publisher> imu_pubs_;
-  std::vector<std::string> imu_names_;
-  std::vector<std::string> imu_frame_names_;
+  struct Imu : public Sensor {
+    std::string name;
+  };
+  std::vector<Imu> imus_;
 };
 
 }  // namespace unreal_airsim

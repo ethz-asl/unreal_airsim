@@ -72,6 +72,8 @@ class OdometryDriftSimulator {
   geometry_msgs::TransformStamped convertGroundTruthToDriftedPoseMsg(
       const geometry_msgs::TransformStamped& ground_truth_pose_msg) const;
 
+  const Config& getConfig() const { return config_; }
+
   void publishTfs() const;
 
  private:
