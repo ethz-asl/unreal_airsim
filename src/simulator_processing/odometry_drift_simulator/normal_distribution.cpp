@@ -8,6 +8,8 @@ NormalDistribution::Config NormalDistribution::Config::fromRosParams(
   Config config;
   nh.param<double>("mean", config.mean, config.mean);
   nh.param<double>("stddev", config.stddev, config.stddev);
+  nh.param<double>("truncate_at_n_stddevs", config.truncate_at_n_stddevs,
+                   config.truncate_at_n_stddevs);
   return config;
 }
 
@@ -19,11 +21,18 @@ bool NormalDistribution::Config::isValid(
         << "/stddev should be a non-negative float";
     return false;
   }
+  if (truncate_at_n_stddevs <= 0.0) {
+    LOG_IF(WARNING, !error_msg_prefix.empty())
+        << "The " << error_msg_prefix
+        << "/truncate_at_n_stddevs should be a strictly positive float";
+    return false;
+  }
   return true;
 }
 
 std::ostream& operator<<(std::ostream& os,
                          const NormalDistribution::Config& config) {
-  return os << "mean: " << config.mean << ", stddev: " << config.stddev;
+  return os << "mean: " << config.mean << ", stddev: " << config.stddev
+            << ", truncate_at_n_stddevs: " << config.truncate_at_n_stddevs;
 }
 }  // namespace unreal_airsim

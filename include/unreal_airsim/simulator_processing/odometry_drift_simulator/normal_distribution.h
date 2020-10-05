@@ -17,10 +17,11 @@ class NormalDistribution {
     // Distribution parameters
     double mean = 0.0;
     double stddev = 0.0;
+    double truncate_at_n_stddevs = 10;
 
     // Validity queries and assertions
     bool isValid(const std::string& error_msg_prefix = "") const;
-    Config& checkValid() {
+    const Config& checkValid() const {
       CHECK(isValid());
       return *this;
     }
@@ -29,19 +30,19 @@ class NormalDistribution {
     friend std::ostream& operator<<(std::ostream& os, const Config& config);
   };
 
-  explicit NormalDistribution(double mean = 0.0, double stddev = 1.0)
-      : mean_(mean), stddev_(stddev) {
-    CHECK_GE(stddev_, 0.0) << "Standard deviation must be non-negative";
-  }
-  explicit NormalDistribution(const Config& config)
-      : NormalDistribution(config.mean, config.stddev) {}
+  explicit NormalDistribution(double mean = 0.0, double stddev = 1.0,
+                              double truncation_radius = 1e6)
+      : NormalDistribution(Config{mean, stddev, truncation_radius}) {}
+  explicit NormalDistribution(Config config)
+      : config_(config.checkValid()),
+        truncation_radius_(config.stddev * config.truncate_at_n_stddevs) {}
 
-  double getMean() const { return mean_; }
-  double getStddev() const { return stddev_; }
+  double getMean() const { return config_.mean; }
+  double getStddev() const { return config_.stddev; }
+  double getTruncationRadius() const { return config_.truncate_at_n_stddevs; }
 
   // Return a sample from the normal distribution N(mean_, stddev_)
   double operator()() {
-    CHECK_GE(stddev_, 0) << "The standard deviation must be non-negative.";
     // Random engine
     // TODO(victorr): Add proper random seed handling (and option to provide it)
     // NOTE: The noise generator is static to ensure that all instances draw
@@ -51,13 +52,20 @@ class NormalDistribution {
     //       output the same sequence.
     static std::mt19937 noise_generator_;
 
-    // Draw a sample from the standard normal N(0,1) and
-    // scale it using the change of variables formula
-    return normal_distribution_(noise_generator_) * stddev_ + mean_;
+    // Draw a sample from the standard normal N(0,1), scale it using the change
+    // of variables formula. If it falls outside the truncation radius, redraw.
+    double sample =
+        normal_distribution_(noise_generator_) * config_.stddev + config_.mean;
+    if (std::abs(sample - config_.mean) <= truncation_radius_) {
+      return sample;
+    } else {
+      return operator()();
+    };
   }
 
  private:
-  const double mean_, stddev_;
+  const Config config_;
+  const double truncation_radius_;
 
   // Standard normal distribution
   std::normal_distribution<double> normal_distribution_;
