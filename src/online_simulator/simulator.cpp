@@ -264,9 +264,11 @@ bool AirsimSimulator::setupROS() {
   sim_state_timer_ =
       nh_.createTimer(ros::Duration(1.0 / config_.state_refresh_rate),
                       &AirsimSimulator::simStateCallback, this);
-  odom_pub_ = nh_.advertise<nav_msgs::Odometry>(
+  ground_truth_odom_pub_ = nh_.advertise<nav_msgs::Odometry>(
       config_.vehicle_name + "/ground_truth/odometry", 5);
-  pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>(
+  simulated_odom_pub_ = nh_.advertise<nav_msgs::Odometry>(
+      config_.vehicle_name + "/simulated/odometry", 5);
+  ground_truth_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>(
       config_.vehicle_name + "/ground_truth/pose", 5);
   collision_pub_ =
       nh_.advertise<std_msgs::Bool>(config_.vehicle_name + "/collision", 1);
@@ -548,7 +550,31 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
 
   // publish TFs, odom msgs and pose msgs
   odometry_drift_simulator_.publishTfs();
-  if (odom_pub_.getNumSubscribers() > 0) {
+  if (ground_truth_odom_pub_.getNumSubscribers() > 0) {
+    nav_msgs::Odometry odom_msg;
+    odom_msg.header.stamp = stamp;
+    odom_msg.header.frame_id = config_.simulator_frame_name;
+    odom_msg.child_frame_id = config_.vehicle_name;
+
+    tf::poseKindrToMsg(odometry_drift_simulator_.getGroundTruthPose(),
+                       &odom_msg.pose.pose);
+
+    odom_msg.twist.twist.linear.x = state.kinematics_estimated.twist.linear.x();
+    odom_msg.twist.twist.linear.y = state.kinematics_estimated.twist.linear.y();
+    odom_msg.twist.twist.linear.z = state.kinematics_estimated.twist.linear.z();
+    odom_msg.twist.twist.angular.x =
+        state.kinematics_estimated.twist.angular.x();
+    odom_msg.twist.twist.angular.y =
+        state.kinematics_estimated.twist.angular.y();
+    odom_msg.twist.twist.angular.z =
+        state.kinematics_estimated.twist.angular.z();
+    // TODO(schmluk): verify that these twist conversions work as intended
+    frame_converter_.airsimToRos(&odom_msg.twist.twist.linear);
+    frame_converter_.airsimToRos(&odom_msg.twist.twist.angular);
+
+    ground_truth_odom_pub_.publish(odom_msg);
+  }
+  if (simulated_odom_pub_.getNumSubscribers() > 0) {
     nav_msgs::Odometry odom_msg;
     odom_msg.header.stamp = stamp;
     odom_msg.header.frame_id = config_.simulator_frame_name;
@@ -570,15 +596,15 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
     frame_converter_.airsimToRos(&odom_msg.twist.twist.linear);
     frame_converter_.airsimToRos(&odom_msg.twist.twist.angular);
 
-    odom_pub_.publish(odom_msg);
+    simulated_odom_pub_.publish(odom_msg);
   }
-  if (pose_pub_.getNumSubscribers() > 0) {
+  if (ground_truth_pose_pub_.getNumSubscribers() > 0) {
     geometry_msgs::PoseStamped pose_msg;
     pose_msg.header.stamp = stamp;
     pose_msg.header.frame_id = config_.simulator_frame_name;
-    tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(),
+    tf::poseKindrToMsg(odometry_drift_simulator_.getGroundTruthPose(),
                        &pose_msg.pose);
-    pose_pub_.publish(pose_msg);
+    ground_truth_pose_pub_.publish(pose_msg);
   }
 
   // collision (the CollisionInfo in the state does not get updated for whatever

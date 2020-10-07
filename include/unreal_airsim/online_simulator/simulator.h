@@ -110,8 +110,9 @@ class AirsimSimulator {
   ros::NodeHandle nh_private_;
   ros::Timer sim_state_timer_;
   ros::Timer startup_timer_;
-  ros::Publisher odom_pub_;
-  ros::Publisher pose_pub_;
+  ros::Publisher ground_truth_odom_pub_;
+  ros::Publisher simulated_odom_pub_;
+  ros::Publisher ground_truth_pose_pub_;
   ros::Publisher collision_pub_;
   ros::Publisher sim_is_ready_pub_;
   ros::Publisher time_pub_;
