@@ -31,7 +31,7 @@ If you plan to use *only* pre-compiled binaries as simulation worlds, this secti
 Install *our fork* of AirSim, the UE4 Plugin:
 ```shell script
 cd </where/to/install>
-git clone git@github.com/ethz-asl/AirSim.git
+git clone git@github.com:ethz-asl/AirSim.git
 cd Airsim
 ./setup.sh 
 ./build.sh
@@ -62,7 +62,7 @@ This repo was developed on a desktop-full version of [ROS melodic](http://wiki.r
 * Install via [SSH](https://help.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh):
     ```shell script
     cd ~/catkin_ws/src
-    git clone git@github.com:ethz-asl/AirSim.git
+    git clone git@github.com:ethz-asl/unreal_airsim.git
     wstool init . ./unreal_airsim/unreal_airsim_ssh.rosinstall
     wstool update
     ```
