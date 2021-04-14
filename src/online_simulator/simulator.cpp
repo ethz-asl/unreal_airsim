@@ -42,7 +42,6 @@ AirsimSimulator::AirsimSimulator(const ros::NodeHandle& nh,
           OdometryDriftSimulator::Config::fromRosParams(nh_private)) {
   // configure
   readParamsFromRos();
-std::cout << "Hi " << std::endl;
 
   // airsim
   bool success = setupAirsim();
