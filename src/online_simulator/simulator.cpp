@@ -300,6 +300,18 @@ bool AirsimSimulator::setupROS() {
       timer = sensor_timers_.back().get();
     }
     timer->addSensor(*this, i);
+
+    // Save camera params (e.g. FOV) as they are needed to generate pointcloud
+    if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA) {
+      auto camera = (Config::Camera*)config_.sensors[i].get();
+      // This assumes the camera exists, which should always be the case with
+      // the auto-generated-config.
+      camera->camera_info = airsim_move_client_.simGetCameraInfo(
+              camera->name, config_.vehicle_name);
+      // TODO(Schmluk): Might want to also publish the camera info or convert
+      // to intrinsics etc
+     }
+
     if (!config_.publish_sensor_transforms) {
       // Broadcast all sensor mounting transforms via static tf.
       geometry_msgs::TransformStamped static_transformStamped;
@@ -307,13 +319,6 @@ bool AirsimSimulator::setupROS() {
       if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA) {
         // Camera frames are x right, y down, z depth
         rotation = Eigen::Quaterniond(0.5, -0.5, 0.5, -0.5) * rotation;
-        auto camera = (Config::Camera*)config_.sensors[i].get();
-        // This assumes the camera exists, which should always be the case with
-        // the auto-generated-config.
-        camera->camera_info = airsim_move_client_.simGetCameraInfo(
-            camera->name, config_.vehicle_name);
-        // TODO(Schmluk): Might want to also publish the camera info or convert
-        // to intrinsics etc
       }
       static_transformStamped.header.stamp = ros::Time::now();
       static_transformStamped.header.frame_id = config_.vehicle_name;
