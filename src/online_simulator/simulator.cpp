@@ -308,6 +308,8 @@ bool AirsimSimulator::setupROS() {
       // the auto-generated-config.
       camera->camera_info = airsim_move_client_.simGetCameraInfo(
               camera->name, config_.vehicle_name);
+      // TODO(Schmluk): Might want to also publish the camera info or convert
+      // to intrinsics etc
      }
 
     if (!config_.publish_sensor_transforms) {
@@ -317,8 +319,6 @@ bool AirsimSimulator::setupROS() {
       if (config_.sensors[i]->sensor_type == Config::Sensor::TYPE_CAMERA) {
         // Camera frames are x right, y down, z depth
         rotation = Eigen::Quaterniond(0.5, -0.5, 0.5, -0.5) * rotation;
-        // TODO(Schmluk): Might want to also publish the camera info or convert
-        // to intrinsics etc
       }
       static_transformStamped.header.stamp = ros::Time::now();
       static_transformStamped.header.frame_id = config_.vehicle_name;
