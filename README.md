@@ -21,7 +21,7 @@ The following 3 components are necessary to utilize the full stack of unreal_air
 
 **Unreal Engine**
 
-Install Unreal Engine. This repository was developped and tested on UE 4.24, which is the recommended version.
+Install Unreal Engine. This repository was developped and tested on UE 4.24.3, which is the recommended version.
 To install UE4 on linux, you need to register with Epic Games and build it from source. 
 Please follow the detailed instructions on [their website](https://docs.unrealengine.com/en-US/Platforms/Linux/BeginnerLinuxDeveloper/SettingUpAnUnrealWorkflow/index.html) to set everything up.
 If you plan to use *only* pre-compiled binaries as simulation worlds, this section can be omitted,
