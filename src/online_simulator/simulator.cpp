@@ -150,9 +150,8 @@ bool AirsimSimulator::readParamsFromRos() {
       } else if (cfg->image_type_str == "DepthPerspective") {
         cfg->image_type =
             msr::airlib::ImageCaptureBase::ImageType::DepthPerspective;
-      } else if (cfg->image_type_str == "DepthPlanner") {
-        cfg->image_type =
-            msr::airlib::ImageCaptureBase::ImageType::DepthPlanner;
+      } else if (cfg->image_type_str == "DepthPlanar") {
+        cfg->image_type = msr::airlib::ImageCaptureBase::ImageType::DepthPlanar;
       } else if (cfg->image_type_str == "DepthVis") {
         cfg->image_type = msr::airlib::ImageCaptureBase::ImageType::DepthVis;
       } else if (cfg->image_type_str == "DisparityNormalized") {

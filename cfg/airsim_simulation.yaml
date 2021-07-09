@@ -22,7 +22,7 @@ sensors:
       
   Depth_cam:
     sensor_type: Camera
-    image_type: DepthPlanner
+    image_type: DepthPlanar
     rate: 3
     pixels_as_float: true
    

@@ -51,7 +51,7 @@ class ConfigParser(object):
         ]
         self.image_type_map = {
             "Scene": 0,
-            "DepthPlanner": 1,
+            "DepthPlanar": 1,
             "DepthPerspective": 2,
             "DepthVis": 3,
             "DisparityNormalized": 4,

@@ -204,7 +204,7 @@ void DepthToPointcloud::publishPointcloud(
    * NOTE(schmluk): This method assumes that all images are from the same
    * simulated camera, i.e. are perfectly aligned and have identical settings
    * (resolution, intrinsics, extrinsics). This assumes we use planar depth
-   * camera (ImageType::DepthPlanner) with image data as floats. We further
+   * camera (ImageType::DepthPlanar) with image data as floats. We further
    * assume that segmentation is created using infrared (ImageType::Infrared),
    * i.e. the labels are provided in the first channel of the segmentation
    * image.
