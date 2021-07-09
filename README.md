@@ -28,10 +28,10 @@ If you plan to use *only* pre-compiled binaries as simulation worlds, this secti
 
 **Airsim**
 
-Install *our fork* of AirSim, the UE4 Plugin:
+Install **our fork** of AirSim, the UE4 Plugin:
 ```shell script
 cd </where/to/install>
-git clone git@github.com:ethz-asl/AirSim.git
+git clone -branch 4.24/master git@github.com:ethz-asl/AirSim.git 
 cd Airsim
 ./setup.sh 
 ./build.sh
