@@ -14,9 +14,6 @@ class ConfigParser(object):
     def __init__(self):
         """  Initialize ros node and read params """
         # Params
-        default_path = os.path.join(os.path.expanduser("~"), "Documents",
-                                    "AirSim", "settings.json")
-        print default_path
         self.target_file_path = rospy.get_param(
             '~target_file_path', "")  # Where to write the target config
         if self.target_file_path is "":
@@ -51,7 +48,7 @@ class ConfigParser(object):
         ]
         self.image_type_map = {
             "Scene": 0,
-            "DepthPlanner": 1,
+            "DepthPlanar": 1,
             "DepthPerspective": 2,
             "DepthVis": 3,
             "DisparityNormalized": 4,

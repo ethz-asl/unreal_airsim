@@ -21,16 +21,17 @@ The following 3 components are necessary to utilize the full stack of unreal_air
 
 **Unreal Engine**
 
-Install Unreal Engine. This repository was developped and tested on UE 4.24.3, which is the recommended version.
+Install Unreal Engine. This repository was developped and tested on UE 4.25, which is the recommended version.
 To install UE4 on linux, you need to register with Epic Games and build it from source. 
 Please follow the detailed instructions on [their website](https://docs.unrealengine.com/en-US/Platforms/Linux/BeginnerLinuxDeveloper/SettingUpAnUnrealWorkflow/index.html) to set everything up.
 If you plan to use *only* pre-compiled binaries as simulation worlds, this section can be omitted,
 
 **Airsim**
 
-Install *our fork* of AirSim, the UE4 Plugin:
+Install **our fork** of AirSim, the UE4 Plugin:
 ```shell script
-cd </where/to/install>
+export AIRSIM_PATH=</absolute/path/where/to/install> # Set the target destination.
+cd $AIRSIM_PATH
 git clone git@github.com:ethz-asl/AirSim.git
 cd Airsim
 ./setup.sh 
@@ -69,9 +70,9 @@ This repo was developed on a desktop-full version of [ROS melodic](http://wiki.r
 * Tell `unreal_airsim` where you installed AirSim by running:
     ```shell script
     cd ~/catkin_ws/src/unreal_airsim
-    echo "set(AIRSIM_ROOT $HOME/catkin_ws/src/AirSim)" > ./AirsimPath.txt
+    echo "set(AIRSIM_ROOT $AIRSIM_PATH)" > ./AirsimPath.txt
     ```
-  In case you didn't install AirSim in your `~/catkin_ws/src` folder, don't forget to replace the above `$HOME/catkin_ws/src/AirSim` path with the path to the alternative location your chose.
+  In case you didn't set `$AIRSIM_PATH` before, don't forget to replace the above `$AIRSIM_PATH` with the absolute path to the lcoation where AirSim is installed.
 
 * Build:
     ```shell script
