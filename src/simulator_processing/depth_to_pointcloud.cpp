@@ -110,7 +110,6 @@ void DepthToPointcloud::depthImageCallback(const sensor_msgs::ImagePtr& msg) {
     vy_ = msg->height / 2;
     focal_length_ =
         static_cast<float>(msg->width) / (2.0 * std::tan(fov_ * M_PI / 360.0));
-    std::cout << vx_ << ", " << vy_ << ", " << focal_length_ << std::endl;
     is_setup_ = true;
   }
 
@@ -285,7 +284,6 @@ void DepthToPointcloud::publishPointcloud(
       }
       float x = (static_cast<float>(u) - vx_) * z / focal_length_;
       float y = (static_cast<float>(v) - vy_) * z / focal_length_;
-      std::cout << "x: " << x << ", y: " << y << std::endl;
       if (max_ray_length_ > 0.0) {
         float dist_square = x * x + y * y + z * z;
         if (dist_square > max_ray_length_ * max_ray_length_) {

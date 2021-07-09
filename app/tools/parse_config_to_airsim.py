@@ -14,9 +14,6 @@ class ConfigParser(object):
     def __init__(self):
         """  Initialize ros node and read params """
         # Params
-        default_path = os.path.join(os.path.expanduser("~"), "Documents",
-                                    "AirSim", "settings.json")
-        print default_path
         self.target_file_path = rospy.get_param(
             '~target_file_path', "")  # Where to write the target config
         if self.target_file_path is "":

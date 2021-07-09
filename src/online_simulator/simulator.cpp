@@ -172,6 +172,7 @@ bool AirsimSimulator::readParamsFromRos() {
         cfg->image_type = cam_defaults.image_type;
         cfg->image_type_str = cam_defaults.image_type_str;
       }
+      cfg->camera_info = airsim_state_client_.simGetCameraInfo(name);
       sensor_cfg = (Config::Sensor*)cfg;
     } else if (sensor_type == Config::Sensor::TYPE_LIDAR) {
       sensor_cfg = new Config::Sensor();
@@ -237,8 +238,9 @@ bool AirsimSimulator::setupAirsim() {
   try {
     server_ver = airsim_state_client_.getServerVersion();
   } catch (rpc::rpc_error& e) {
-    auto msg = e.get_error().as<std::string>();
-    std::cout << "Lukas' RPC catch:" << std::endl << msg << std::endl;
+    LOG(FATAL) << "Could not get server version from AirSim Plugin: "
+               << e.get_error().as<std::string>();
+    return false;
   }
   int client_ver = airsim_state_client_.getClientVersion();
   int server_min_ver = airsim_state_client_.getMinRequiredServerVersion();
