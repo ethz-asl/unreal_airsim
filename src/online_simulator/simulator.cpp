@@ -485,6 +485,7 @@ bool AirsimSimulator::startSimTimer() {
     })
         .detach();
   }
+  return true;
 }
 
 void AirsimSimulator::readSimTimeCallback() {
