@@ -12,6 +12,10 @@
 #include <trajectory_msgs/MultiDOFJointTrajectory.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <nav_msgs/Odometry.h>
 
 // AirSim
 #include <common/CommonStructs.hpp>
@@ -46,7 +50,7 @@ public:
     double reached_yaw_degrees;
 
     PIDParams()
-        : kp_x(0.5), kp_y(0.5), kp_z(0.10), kp_yaw(0.4), kd_x(0.3), kd_y(0.3), kd_z(0.2), kd_yaw(0.1), reached_thresh_xyz(0.02), reached_yaw_degrees(0.1)
+        : kp_x(0.5), kp_y(0.5), kp_z(0.10), kp_yaw(0.4), kd_x(0.3), kd_y(0.3), kd_z(0.2), kd_yaw(0.1), reached_thresh_xyz(0.1), reached_yaw_degrees(0.1)
     {
     }
 
@@ -80,10 +84,16 @@ public:
 
 namespace math_utils {
 
-  template <typename T>
+template <typename T>
 inline T rad2deg(const T radians)
 {
     return (radians / M_PI) * 180.0;
+}
+
+template <typename T>
+inline T deg2rad(const T degrees)
+{
+    return (degrees / 180.0) * M_PI;
 }
 
 template <typename T>
@@ -116,7 +126,67 @@ inline T angular_dist(T from, T to)
         d += 2. * M_PI;
     return d;
 }
+
+inline double get_yaw_from_quat_msg(const geometry_msgs::Quaternion& quat_msg)
+{
+    tf2::Quaternion quat_tf;
+    double roll, pitch, yaw;
+    tf2::fromMsg(quat_msg, quat_tf);
+    tf2::Matrix3x3(quat_tf).getRPY(roll, pitch, yaw);
+    return yaw;
 }
+}
+
+class PIDPositionController
+{
+public:
+    PIDPositionController(const ros::NodeHandle& nh, const ros::NodeHandle& nh_private);
+
+    // ROS service callbacks
+    //bool local_position_goal_srv_cb(airsim_ros_pkgs::SetLocalPosition::Request& request, airsim_ros_pkgs::SetLocalPosition::Response& response);
+    // ROS subscriber callbacks
+    void airsim_odom_cb(const nav_msgs::Odometry& odom_msg);
+    void set_airsim_odom(const geometry_msgs::Pose &pose);
+    void set_yaw_position(const double x, const double y, const double z, const double yaw);
+    bool set_target(const double x, const double y, const double z, const double yaw);
+    void update_control_cmd_timer_cb(const ros::TimerEvent& event);
+    void tick();
+    void reset_errors();
+
+    void initialize_ros();
+    void compute_control_cmd();
+    void enforce_dynamic_constraints();
+    void publish_control_cmd();
+    bool check_reached_goal();
+    bool get_velocity(geometry_msgs::Twist&) const; 
+    msr::airlib::YawMode getYawMode() const;
+
+private:
+
+    ros::NodeHandle nh_;
+    ros::NodeHandle nh_private_;
+
+    DynamicConstraints constraints_;
+    PIDParams params_;
+    XYZYaw target_position_;
+    XYZYaw curr_position_;
+    XYZYaw prev_error_;
+    XYZYaw curr_error_;
+
+    nav_msgs::Odometry curr_odom_;
+    geometry_msgs::Twist vel_cmd_;
+    bool reached_goal_;
+    bool has_goal_;
+    bool has_odom_;
+    bool got_goal_once_;
+    // todo check for odom msg being older than n sec
+    FrameConverter frame_converter_;
+
+    ros::Publisher airsim_vel_cmd_world_frame_pub_;
+    ros::Subscriber airsim_odom_sub_;
+    ros::ServiceServer local_position_goal_srvr_;
+    ros::Timer update_control_cmd_timer_;
+};
 
 
 /***
@@ -196,6 +266,8 @@ class AirsimSimulator {
   // added from trajectory caller node
   void commandTrajectorycallback(const trajectory_msgs::MultiDOFJointTrajectory trajectory);
 
+  void trackWayPoints();
+
   // Acessors
   const Config& getConfig() const { return config_; }
   const FrameConverter& getFrameConverter() const { return frame_converter_; }
@@ -237,12 +309,7 @@ class AirsimSimulator {
   bool has_goal_;
   bool got_goal_once_;
 
-  DynamicConstraints constraints_;
-  PIDParams params_;
-  XYZYaw target_position_;
-  XYZYaw curr_position_;
-  XYZYaw prev_error_;
-  XYZYaw curr_error_;
+  PIDPositionController pid_controller_;
 
   // components
   std::vector<std::unique_ptr<SensorTimer>>

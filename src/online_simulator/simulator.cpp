@@ -32,6 +32,251 @@ STRICT_MODE_ON
 
 namespace unreal_airsim {
 
+bool PIDParams::load_from_rosparams(const ros::NodeHandle& nh)
+{
+    bool found = true;
+
+    found = found && nh.getParam("kp_x", kp_x);
+    found = found && nh.getParam("kp_y", kp_y);
+    found = found && nh.getParam("kp_z", kp_z);
+    found = found && nh.getParam("kp_yaw", kp_yaw);
+
+    found = found && nh.getParam("kd_x", kd_x);
+    found = found && nh.getParam("kd_y", kd_y);
+    found = found && nh.getParam("kd_z", kd_z);
+    found = found && nh.getParam("kd_yaw", kd_yaw);
+
+    found = found && nh.getParam("reached_thresh_xyz", reached_thresh_xyz);
+    found = found && nh.getParam("reached_yaw_degrees", reached_yaw_degrees);
+
+    return found;
+}
+
+bool DynamicConstraints::load_from_rosparams(const ros::NodeHandle& nh)
+{
+    bool found = true;
+
+    found = found && nh.getParam("max_vel_horz_abs", max_vel_horz_abs);
+    found = found && nh.getParam("max_vel_vert_abs", max_vel_vert_abs);
+    found = found && nh.getParam("max_yaw_rate_degree", max_yaw_rate_degree);
+
+    return found;
+}
+
+PIDPositionController::PIDPositionController(const ros::NodeHandle& nh, const ros::NodeHandle& nh_private)
+    : nh_(nh), nh_private_(nh_private), has_odom_(false), has_goal_(false), reached_goal_(false), got_goal_once_(false)
+{
+    params_.load_from_rosparams(nh_private_);
+    constraints_.load_from_rosparams(nh_);
+    initialize_ros();
+    reset_errors();
+}
+
+void PIDPositionController::reset_errors()
+{
+    prev_error_.x = 0.0;
+    prev_error_.y = 0.0;
+    prev_error_.z = 0.0;
+    prev_error_.yaw = 0.0;
+}
+
+void PIDPositionController::initialize_ros()
+{
+    //vel_cmd_ = airsim_ros_pkgs::VelCmd();
+    // ROS params
+    // double update_control_every_n_sec;
+    // nh_private_.getParam("update_control_every_n_sec", update_control_every_n_sec);
+
+    // ROS publishers
+    // airsim_vel_cmd_world_frame_pub_ = nh_private_.advertise<geometry_msgs::Twist>("/vel_cmd_world_frame", 1);
+
+    // ROS subscribers
+    //airsim_odom_sub_ = nh_.subscribe("/airsim_drone/ground_truth/odometry", 50, &PIDPositionController::airsim_odom_cb, this);
+    // todo publish this under global nodehandle / "airsim node" and hide it from user
+    //local_position_goal_srvr_ = nh_.advertiseService("/local_position_goal", &PIDPositionController::local_position_goal_srv_cb, this);
+    
+    // ROS timers
+    //update_control_cmd_timer_ = nh_private_.createTimer(ros::Duration(update_control_every_n_sec), &PIDPositionController::update_control_cmd_timer_cb, this);
+}
+
+void PIDPositionController::airsim_odom_cb(const nav_msgs::Odometry& odom_msg)
+{
+    has_odom_ = true;
+    curr_odom_ = odom_msg;
+    curr_position_.x = odom_msg.pose.pose.position.x;
+    curr_position_.y = odom_msg.pose.pose.position.y;
+    curr_position_.z = odom_msg.pose.pose.position.z;
+    curr_position_.yaw = math_utils::get_yaw_from_quat_msg(odom_msg.pose.pose.orientation);
+}
+
+// void PIDPositionController::airsim_odom(const geometry_msgs::Pose &pose)
+// {
+//     has_odom_ = true;
+//     curr_odom_ = odom_msg;
+//     curr_position_.x = pose.position.x;
+//     curr_position_.y = pose.position.y;
+//     curr_position_.z = pose.position.z;
+//     curr_position_.yaw = math_utils::get_yaw_from_quat_msg(pose.orientation);
+// }
+
+void PIDPositionController::set_yaw_position(const double x, const double y, const double z, const double yaw)
+{
+    has_odom_ = true;
+    curr_position_.x = x;
+    curr_position_.y = y;
+    curr_position_.z = z;
+    curr_position_.yaw = yaw;
+}
+
+bool PIDPositionController::set_target(const double x, const double y, const double z, const double yaw)
+{
+    if (!got_goal_once_)
+        got_goal_once_ = true;
+
+    if (has_goal_ && !reached_goal_) {
+        // todo maintain array of position goals
+        ROS_ERROR_STREAM("[PIDPositionController] denying position goal request. I am still following the previous goal");
+        return false;
+    }
+
+    if (!has_goal_) {
+        target_position_.x = x;
+        target_position_.y = y;
+        target_position_.z = z;
+        target_position_.yaw = yaw;
+
+        ROS_INFO_STREAM("[PIDPositionController] got goal: x=" << target_position_.x << " y=" << target_position_.y << " z=" << target_position_.z << " yaw=" << target_position_.yaw);
+
+        // todo error checks
+        // todo fill response
+        has_goal_ = true;
+        reached_goal_ = false;
+        reset_errors(); // todo
+        return true;
+    }
+
+    // Already have goal, and have reached it
+    ROS_INFO_STREAM("[PIDPositionController] Already have goal and have reached it");
+    return false;
+}
+
+bool PIDPositionController::check_reached_goal()
+{
+    double diff_xyz = sqrt((target_position_.x - curr_position_.x) * (target_position_.x - curr_position_.x) + (target_position_.y - curr_position_.y) * (target_position_.y - curr_position_.y) + (target_position_.z - curr_position_.z) * (target_position_.z - curr_position_.z));
+
+    double diff_yaw = math_utils::angular_dist(target_position_.yaw, curr_position_.yaw);
+
+    // todo save this in degrees somewhere to avoid repeated conversion
+    if (diff_xyz < params_.reached_thresh_xyz && diff_yaw < math_utils::deg2rad(params_.reached_yaw_degrees))
+        reached_goal_ = true;
+        return true;
+
+  return false;
+}
+
+void PIDPositionController::update_control_cmd_timer_cb(const ros::TimerEvent& event)
+{
+    tick();
+}
+
+void PIDPositionController::tick()
+{
+    // todo check if odometry is too old!!
+    // if no odom, don't do anything.
+    if (!has_odom_) {
+        ROS_ERROR_STREAM("[PIDPositionController] Waiting for odometry!");
+        return;
+    }
+
+    if (has_goal_) {
+        check_reached_goal();
+        if (reached_goal_) {
+            ROS_INFO_STREAM("[PIDPositionController] Reached goal! Hovering at position.");
+            has_goal_ = false;
+            // dear future self, this function doesn't return coz we need to keep on actively hovering at last goal pose. don't act smart
+        }
+        else {
+            ROS_INFO_STREAM("[PIDPositionController] Moving to goal.");
+        }
+    }
+
+    // only compute and send control commands for hovering / moving to pose, if we received a goal at least once in the past
+    if (got_goal_once_) {
+        compute_control_cmd();
+        enforce_dynamic_constraints();
+        publish_control_cmd();
+    }
+}
+
+void PIDPositionController::compute_control_cmd()
+{
+    curr_error_.x = target_position_.x - curr_position_.x;
+    curr_error_.y = target_position_.y - curr_position_.y;
+    curr_error_.z = target_position_.z - curr_position_.z;
+    curr_error_.yaw = math_utils::angular_dist(curr_position_.yaw, target_position_.yaw);
+
+    double p_term_x = params_.kp_x * curr_error_.x;
+    double p_term_y = params_.kp_y * curr_error_.y;
+    double p_term_z = params_.kp_z * curr_error_.z;
+    double p_term_yaw = params_.kp_yaw * curr_error_.yaw;
+
+    double d_term_x = params_.kd_x * prev_error_.x;
+    double d_term_y = params_.kd_y * prev_error_.y;
+    double d_term_z = params_.kd_z * prev_error_.z;
+    double d_term_yaw = params_.kp_yaw * prev_error_.yaw;
+
+    prev_error_ = curr_error_;
+
+    vel_cmd_.linear.x = p_term_x + d_term_x;
+    vel_cmd_.linear.y = p_term_y + d_term_y;
+    vel_cmd_.linear.z = p_term_z + d_term_z;
+    vel_cmd_.angular.z = p_term_yaw + d_term_yaw; // todo
+}
+
+void PIDPositionController::enforce_dynamic_constraints()
+{
+    double vel_norm_horz = sqrt((vel_cmd_.linear.x * vel_cmd_.linear.x) + (vel_cmd_.linear.y * vel_cmd_.linear.y));
+
+    if (vel_norm_horz > constraints_.max_vel_horz_abs) {
+        vel_cmd_.linear.x = (vel_cmd_.linear.x / vel_norm_horz) * constraints_.max_vel_horz_abs;
+        vel_cmd_.linear.y = (vel_cmd_.linear.y / vel_norm_horz) * constraints_.max_vel_horz_abs;
+    }
+
+    if (std::fabs(vel_cmd_.linear.z) > constraints_.max_vel_vert_abs) {
+        // todo just add a sgn funciton in common utils? return double to be safe.
+        // template <typename T> double sgn(T val) { return (T(0) < val) - (val < T(0)); }
+        vel_cmd_.linear.z = (vel_cmd_.linear.z / std::fabs(vel_cmd_.linear.z)) * constraints_.max_vel_vert_abs;
+    }
+    // todo yaw limits
+    if (std::fabs(vel_cmd_.linear.z) > constraints_.max_yaw_rate_degree) {
+        // todo just add a sgn funciton in common utils? return double to be safe.
+        // template <typename T> double sgn(T val) { return (T(0) < val) - (val < T(0)); }
+        vel_cmd_.linear.z = (vel_cmd_.linear.z / std::fabs(vel_cmd_.linear.z)) * constraints_.max_yaw_rate_degree;
+    }
+}
+
+// todo - replace with a airsim_move_client_.moveByVelocityAsync(
+void PIDPositionController::publish_control_cmd()
+{
+    airsim_vel_cmd_world_frame_pub_.publish(vel_cmd_);
+}
+
+bool PIDPositionController::get_velocity(geometry_msgs::Twist& vel) const
+{
+  if(got_goal_once_) {
+    vel = vel_cmd_;
+    return true;
+  }
+  return false;
+}
+
+msr::airlib::YawMode PIDPositionController::getYawMode() const {
+  msr::airlib::YawMode yaw_mode;
+  yaw_mode.is_rate = true;
+  yaw_mode.yaw_or_rate = math_utils::rad2deg(vel_cmd_.angular.z);
+  return yaw_mode;
+}
+
 AirsimSimulator::AirsimSimulator(const ros::NodeHandle& nh,
                                  const ros::NodeHandle& nh_private)
     : nh_(nh),
@@ -43,6 +288,7 @@ AirsimSimulator::AirsimSimulator(const ros::NodeHandle& nh,
       only_move_in_yaw_direction(true),
       goal_yaw(0),
       has_goal_(false),
+      pid_controller_(nh, nh_private),
       odometry_drift_simulator_(
           OdometryDriftSimulator::Config::fromRosParams(nh_private)) {
   // configure
@@ -419,6 +665,9 @@ bool AirsimSimulator::initializeSimulationFrame() {
 // Callback for trajectories published by active plner
 void AirsimSimulator::commandTrajectorycallback(
     const trajectory_msgs::MultiDOFJointTrajectory trajectory) {
+  if (!is_running_) {
+    return;
+  }
   for (const auto& point : trajectory.points) {
     for (auto pose : point.transforms) {
       std::cout << "adding pose to goal" << pose.rotation.y << " "
@@ -427,15 +676,12 @@ void AirsimSimulator::commandTrajectorycallback(
       OdometryDriftSimulator::Transformation T_drift_command;
       tf::transformMsgToKindr(pose, &T_drift_command);
       const OdometryDriftSimulator::Transformation T_gt_command =
-          odometry_drift_simulator_.convertDriftedToGroundTruthPose(
-              T_drift_command);
-      OdometryDriftSimulator::Transformation::Position t_gt_current_position =
-          odometry_drift_simulator_.getGroundTruthPose().getPosition();
+          odometry_drift_simulator_.convertDriftedToGroundTruthPose(T_drift_command);
 
       geometry_msgs::Transform transform;
       tf::transformKindrToMsg(T_gt_command, &transform);
       frame_converter_.rosToAirsim(&transform);
-    
+
       auto* pt = new Waypoint;
       pt->pose = transform;
       pt->isGoal = false;
@@ -572,6 +818,96 @@ ros::Time AirsimSimulator::getTimeStamp(msr::airlib::TTimePoint airsim_stamp) {
   }
 }
 
+void AirsimSimulator::trackWayPoints() {
+  // if there are waypoints that need to be followed
+  // send desired velocity commands to PID Ccontroller
+  // to follow the waypoints
+  if (!points.empty()) {
+    // just found a new waypoint. After
+    // setting it as target
+
+    geometry_msgs::Pose pose;
+    tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(), &pose);
+
+    frame_converter_.rosToAirsim(&pose);
+    if (!followingGoal) {
+      // Get next point to track
+      current_goal = points.front();
+
+      auto current_position = pose.position;
+      auto target_position =  current_goal->pose.translation;
+
+      double yaw;
+
+      if (only_move_in_yaw_direction && !current_goal->isGoal) {
+        // We are currently tracking waypoints and not final goalpoints
+        // If only move in yaw direction, set yaw of waypoints (except goal
+        // point) to moving direction
+        auto delta_x = target_position.x - current_position.x;
+        auto delta_y = target_position.y - current_position.y;
+        if (abs(delta_x) + abs(delta_y) <= 0.1) {
+          // If we overshoot over the goalpoint, the robot will rotate 180 deg
+          // and drive back for a really small amount. Check if overshoot
+          // occured (delta really small) and don't turn around in this case
+          yaw = goal_yaw;
+        } else {
+          yaw = atan2(delta_y, delta_x);
+        }
+
+        std::cout << "forcing yaw in view direction" << std::endl;
+      } else {
+        // Rotate to goal yaw
+        tf::Quaternion q(
+            current_goal->pose.rotation.x, current_goal->pose.rotation.y,
+            current_goal->pose.rotation.z, current_goal->pose.rotation.w);
+        tf::Matrix3x3 m(q);
+        double roll, pitch;
+        m.getRPY(roll, pitch, yaw);
+      }
+      goal_yaw = yaw;
+
+      // goal_received=true
+      double current_yaw = math_utils::get_yaw_from_quat_msg(pose.orientation);
+      pid_controller_.set_yaw_position(current_position.x, current_position.y,
+                                       current_position.z, current_yaw);
+      if (pid_controller_.set_target(target_position.x, target_position.y,
+                                     target_position.z, goal_yaw)) {
+        followingGoal = true;
+      }
+
+    } else {  // already following a goal
+      bool goal_reached = pid_controller_.check_reached_goal();
+
+      if (goal_reached) {
+        if (current_goal->isGoal) {
+          // Reached Goal
+          std::cout << "reached a goal point" << std::endl;
+
+        } else {
+          std::cout << "reached a way point" << std::endl;
+        }
+
+        // move to next way point
+        auto* off = points.front();
+        points.pop();
+        delete off;
+        followingGoal = false;
+      }
+    }
+  }
+
+  pid_controller_.tick();
+
+  geometry_msgs::Twist vel_cmd;
+  if (pid_controller_.get_velocity(vel_cmd)) {
+    // move the drone
+    airsim_move_client_.moveByVelocityAsync(
+        vel_cmd.linear.x, vel_cmd.linear.y, vel_cmd.linear.z, 0.05,
+        msr::airlib::DrivetrainType::MaxDegreeOfFreedom,
+        pid_controller_.getYawMode(), config_.vehicle_name);
+  }
+}
+
 void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
   if (is_shutdown_) {
     return;
@@ -656,177 +992,11 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
     msg.data = true;
     collision_pub_.publish(msg);
   }
-
-  // if there are waypoints that need to be followed
-    // send desired velocity commands to PID Ccontroller
-    // to follow the waypoints
-  if (!points.empty()) {
-    // just found a new waypoint. After
-    // setting it as target
-
-    geometry_msgs::Pose pose;
-    tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(), &pose);
-
-    frame_converter_.rosToAirsim(&pose);
-    if (!followingGoal) {
-      // Get next point to track
-      current_goal = points.front();
-
-      auto current_position = pose.position;
-      auto target_position =
-          current_goal->pose.translation;  // in airsim coordinates
-
-      double yaw;
-
-      if (only_move_in_yaw_direction && !current_goal->isGoal) {
-        // We are currently tracking waypoints and not final goalpoints
-        // If only move in yaw direction, set yaw of waypoints (except goal
-        // point) to moving direction
-        auto delta_x = target_position.x - current_position.x;
-        auto delta_y = target_position.y - current_position.y;
-        if (abs(delta_x) + abs(delta_y) <= 0.1) {
-          // If we overshoot over the goalpoint, the robot will rotate 180 deg
-          // and drive back for a really small amount. Check if overshoot
-          // occured (delta really small) and don't turn around in this case
-          yaw = goal_yaw;
-        } else {
-          yaw = atan2(delta_y, delta_x);
-        }
-
-        std::cout << "forcing yaw in view direction" << std::endl;
-      } else {
-        // Rotate to goal yaw
-        tf::Quaternion q(
-            current_goal->pose.rotation.x, current_goal->pose.rotation.y,
-            current_goal->pose.rotation.z, current_goal->pose.rotation.w);
-        tf::Matrix3x3 m(q);
-        double roll, pitch;
-        m.getRPY(roll, pitch, yaw);
-      }
-      goal_yaw = yaw;
-
-      // contact pid node with target_position + yaw - todo (mansoor)
-      followingGoal = true;
-      has_goal_ = true;
-      got_goal_once_ = true;
-      reached_goal_ = false;
-      // goal_received=true
-      //current_pos_ = current_pos
-      // current_yaw = current_yaw
-      //target_pos_ = target_pos
-      //target_yaw = yaw
-      curr_position_.x = current_position.x;
-      curr_position_.y = current_position.y;
-      curr_position_.z = current_position.z;
-      {
-        tf2::Quaternion quat_tf;
-        double roll, pitch, yaw;
-        tf2::fromMsg(pose.orientation, quat_tf);
-        tf2::Matrix3x3(quat_tf).getRPY(roll, pitch, yaw);
-        curr_position_.yaw = yaw;
-      }
-
-      target_position_.x = target_position.x;
-      target_position_.y = target_position.y;
-      target_position_.z = target_position.z;
-      target_position_.yaw = goal_yaw;
-
-      // then at the end of method calculate the desired velocity and then use 
-      //  airsim_move_client_.moveByVelocityAsync(vel_cmd.x, vel_cmd.y, vel_cmd.z, vel_cmd_duration_, msr::airlib::DrivetrainType::MaxDegreeOfFreedom, vel_cmd.yaw_mode, vehicle_name);
-    } else {  // already following a goal
-      auto current_position_ =
-          Eigen::Vector3d(pose.position.x, pose.position.y, pose.position.z);
-
-      auto goal_position_ = Eigen::Vector3d(current_goal->pose.translation.x,
-                                            current_goal->pose.translation.y,
-                                            current_goal->pose.translation.z);
-
-      if ((goal_position_ - current_position_).norm() < 0.1) {
-        // Goal position reached, what about orientation?
-        double yaw = tf::getYaw(pose.orientation);
-
-        double angle = std::abs(std::fmod(yaw - goal_yaw, 2.0 * M_PI));
-        if (angle > M_PI) {
-          angle = 2.0 * M_PI - angle;
-        }
-
-        if (angle < 0.1) {
-          // Orientation reached
-          std::cout << "reached goal point (rotation)" << std::endl;
-          // Reached target yaw. Publish a message containing gain information
-
-          if (current_goal->isGoal) {
-            // Reached Goal
-            std::cout << "reached a goal point" << std::endl;
-
-          } else {
-            std::cout << "reached a way point" << std::endl;
-          }
-          auto* off = points.front();
-          points.pop();
-          delete off;
-          followingGoal = false;
-        }
-      }
-    }
-  }
-
-  if (got_goal_once_) {
-    // todo (move to pid controller) - calculate velocity from current position
-    // and target position
-    curr_error_.x = target_position_.x - curr_position_.x;
-    curr_error_.y = target_position_.y - curr_position_.y;
-    curr_error_.z = target_position_.z - curr_position_.z;
-    curr_error_.yaw =
-        math_utils::angular_dist(curr_position_.yaw, target_position_.yaw);
-
-    double p_term_x = params_.kp_x * curr_error_.x;
-    double p_term_y = params_.kp_y * curr_error_.y;
-    double p_term_z = params_.kp_z * curr_error_.z;
-    double p_term_yaw = params_.kp_yaw * curr_error_.yaw;
-
-    double d_term_x = params_.kd_x * prev_error_.x;
-    double d_term_y = params_.kd_y * prev_error_.y;
-    double d_term_z = params_.kd_z * prev_error_.z;
-    double d_term_yaw = params_.kp_yaw * prev_error_.yaw;
-
-    prev_error_ = curr_error_;
-
-    double twist_linear_x = p_term_x + d_term_x;
-    double twist_linear_y = p_term_y + d_term_y;
-    double twist_linear_z = p_term_z + d_term_z;
-    double twist_angular_z = p_term_yaw + d_term_yaw;  // todo
-    msr::airlib::YawMode yaw_mode;
-    yaw_mode.is_rate = true;
-    yaw_mode.yaw_or_rate = math_utils::rad2deg(twist_angular_z);
-    double vel_cmd_duration = 0.05;
-
-    // enfore dynamic constraints
-    double vel_norm_horz = sqrt((twist_linear_x * twist_linear_x) + (twist_linear_y * twist_linear_y));
-
-    if (vel_norm_horz > constraints_.max_vel_horz_abs) {
-        twist_linear_x = (twist_linear_x / vel_norm_horz) * constraints_.max_vel_horz_abs;
-        twist_linear_y = (twist_linear_y / vel_norm_horz) * constraints_.max_vel_horz_abs;
-    }
-
-    if (std::fabs(twist_linear_z) > constraints_.max_vel_vert_abs) {
-        // todo just add a sgn funciton in common utils? return double to be safe.
-        // template <typename T> double sgn(T val) { return (T(0) < val) - (val < T(0)); }
-        twist_linear_z = (twist_linear_z / std::fabs(twist_linear_z)) * constraints_.max_vel_vert_abs;
-    }
-    // todo yaw limits
-    if (std::fabs(twist_linear_z) > constraints_.max_yaw_rate_degree) {
-        // todo just add a sgn funciton in common utils? return double to be safe.
-        // template <typename T> double sgn(T val) { return (T(0) < val) - (val < T(0)); }
-        twist_linear_z = (twist_linear_z / std::fabs(twist_linear_z)) * constraints_.max_yaw_rate_degree;
-    }
-    // move the drone
-    airsim_move_client_.moveByVelocityAsync(
-        twist_linear_x, twist_linear_y, twist_linear_z, vel_cmd_duration,
-        msr::airlib::DrivetrainType::MaxDegreeOfFreedom, yaw_mode,
-        config_.vehicle_name);
-  }
+  // track trajectory
+  trackWayPoints();
 }
+
+
 
 bool AirsimSimulator::readTransformFromRos(const std::string& topic,
                                            Eigen::Vector3d* translation,
