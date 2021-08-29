@@ -30,6 +30,30 @@ namespace unreal_airsim {
   bool isGoal{};
 } Waypoint;
 
+class PIDParams
+{
+public:
+    double kp_x;
+    double kp_y;
+    double kp_z;
+    double kp_yaw;
+    double kd_x;
+    double kd_y;
+    double kd_z;
+    double kd_yaw;
+
+    double reached_thresh_xyz;
+    double reached_yaw_degrees;
+
+    PIDParams()
+        : kp_x(0.5), kp_y(0.5), kp_z(0.10), kp_yaw(0.4), kd_x(0.3), kd_y(0.3), kd_z(0.2), kd_yaw(0.1), reached_thresh_xyz(0.02), reached_yaw_degrees(0.1)
+    {
+    }
+
+    bool load_from_rosparams(const ros::NodeHandle& nh);
+};
+
+// todo should be a common representation
 struct XYZYaw
 {
     double x;
@@ -37,6 +61,62 @@ struct XYZYaw
     double z;
     double yaw;
 };
+
+// todo should be a common representation
+class DynamicConstraints
+{
+public:
+    double max_vel_horz_abs; // meters/sec
+    double max_vel_vert_abs;
+    double max_yaw_rate_degree;
+
+    DynamicConstraints()
+        : max_vel_horz_abs(1.0), max_vel_vert_abs(0.5), max_yaw_rate_degree(10.0)
+    {
+    }
+
+    bool load_from_rosparams(const ros::NodeHandle& nh);
+};
+
+namespace math_utils {
+
+  template <typename T>
+inline T rad2deg(const T radians)
+{
+    return (radians / M_PI) * 180.0;
+}
+
+template <typename T>
+inline T wrap_to_pi(T radians)
+{
+    int m = (int)(radians / (2 * M_PI));
+    radians = radians - m * 2 * M_PI;
+    if (radians > M_PI)
+        radians -= 2.0 * M_PI;
+    else if (radians < -M_PI)
+        radians += 2.0 * M_PI;
+    return radians;
+}
+
+template <typename T>
+inline void wrap_to_pi_inplace(T& a)
+{
+    a = wrap_to_pi(a);
+}
+
+template <class T>
+inline T angular_dist(T from, T to)
+{
+    wrap_to_pi_inplace(from);
+    wrap_to_pi_inplace(to);
+    T d = to - from;
+    if (d > M_PI)
+        d -= 2. * M_PI;
+    else if (d < -M_PI)
+        d += 2. * M_PI;
+    return d;
+}
+}
 
 
 /***
@@ -152,6 +232,17 @@ class AirsimSimulator {
 
   // Read sim time from AirSim
   std::thread timer_thread_;
+
+  bool reached_goal_;
+  bool has_goal_;
+  bool got_goal_once_;
+
+  DynamicConstraints constraints_;
+  PIDParams params_;
+  XYZYaw target_position_;
+  XYZYaw curr_position_;
+  XYZYaw prev_error_;
+  XYZYaw curr_error_;
 
   // components
   std::vector<std::unique_ptr<SensorTimer>>

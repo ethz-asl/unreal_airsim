@@ -42,6 +42,7 @@ AirsimSimulator::AirsimSimulator(const ros::NodeHandle& nh,
       followingGoal(false),
       only_move_in_yaw_direction(true),
       goal_yaw(0),
+      has_goal_(false),
       odometry_drift_simulator_(
           OdometryDriftSimulator::Config::fromRosParams(nh_private)) {
   // configure
@@ -706,11 +707,30 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
 
       // contact pid node with target_position + yaw - todo (mansoor)
       followingGoal = true;
+      has_goal_ = true;
+      got_goal_once_ = true;
+      reached_goal_ = false;
       // goal_received=true
       //current_pos_ = current_pos
       // current_yaw = current_yaw
       //target_pos_ = target_pos
       //target_yaw = yaw
+      curr_position_.x = current_position.x;
+      curr_position_.y = current_position.y;
+      curr_position_.z = current_position.z;
+      {
+        tf2::Quaternion quat_tf;
+        double roll, pitch, yaw;
+        tf2::fromMsg(pose.orientation, quat_tf);
+        tf2::Matrix3x3(quat_tf).getRPY(roll, pitch, yaw);
+        curr_position_.yaw = yaw;
+      }
+
+      target_position_.x = target_position.x;
+      target_position_.y = target_position.y;
+      target_position_.z = target_position.z;
+      target_position_.yaw = goal_yaw;
+
       // then at the end of method calculate the desired velocity and then use 
       //  airsim_move_client_.moveByVelocityAsync(vel_cmd.x, vel_cmd.y, vel_cmd.z, vel_cmd_duration_, msr::airlib::DrivetrainType::MaxDegreeOfFreedom, vel_cmd.yaw_mode, vehicle_name);
     } else {  // already following a goal
@@ -750,32 +770,62 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
       }
     }
   }
-  // todo - calculate velocity from current position and target position
-  // curr_error_.x = target_position_.x - curr_position_.x;
-  // curr_error_.y = target_position_.y - curr_position_.y;
-  // curr_error_.z = target_position_.z - curr_position_.z;
-  // curr_error_.yaw = math_common::angular_dist(curr_position_.yaw, target_position_.yaw);
 
-  // double p_term_x = params_.kp_x * curr_error_.x;
-  // double p_term_y = params_.kp_y * curr_error_.y;
-  // double p_term_z = params_.kp_z * curr_error_.z;
-  // double p_term_yaw = params_.kp_yaw * curr_error_.yaw;
+  if (got_goal_once_) {
+    // todo (move to pid controller) - calculate velocity from current position
+    // and target position
+    curr_error_.x = target_position_.x - curr_position_.x;
+    curr_error_.y = target_position_.y - curr_position_.y;
+    curr_error_.z = target_position_.z - curr_position_.z;
+    curr_error_.yaw =
+        math_utils::angular_dist(curr_position_.yaw, target_position_.yaw);
 
-  // double d_term_x = params_.kd_x * prev_error_.x;
-  // double d_term_y = params_.kd_y * prev_error_.y;
-  // double d_term_z = params_.kd_z * prev_error_.z;
-  // double d_term_yaw = params_.kp_yaw * prev_error_.yaw;
+    double p_term_x = params_.kp_x * curr_error_.x;
+    double p_term_y = params_.kp_y * curr_error_.y;
+    double p_term_z = params_.kp_z * curr_error_.z;
+    double p_term_yaw = params_.kp_yaw * curr_error_.yaw;
 
-  // prev_error_ = curr_error_;
+    double d_term_x = params_.kd_x * prev_error_.x;
+    double d_term_y = params_.kd_y * prev_error_.y;
+    double d_term_z = params_.kd_z * prev_error_.z;
+    double d_term_yaw = params_.kp_yaw * prev_error_.yaw;
 
-  // vel_cmd_.twist.linear.x = p_term_x + d_term_x;
-  // vel_cmd_.twist.linear.y = p_term_y + d_term_y;
-  // vel_cmd_.twist.linear.z = p_term_z + d_term_z;
-  // vel_cmd_.twist.angular.z = p_term_yaw + d_term_yaw; // todo
-  // vel_cmd.yaw_mode.is_rate = true;
-  // vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg->twist.angular.z);
-  // airsim_move_client_.moveByVelocityAsync(vel_cmd.x, vel_cmd.y, vel_cmd.z, vel_cmd_duration_, 
-  //                         msr::airlib::DrivetrainType::MaxDegreeOfFreedom, vel_cmd.yaw_mode, vehicle_name);
+    prev_error_ = curr_error_;
+
+    double twist_linear_x = p_term_x + d_term_x;
+    double twist_linear_y = p_term_y + d_term_y;
+    double twist_linear_z = p_term_z + d_term_z;
+    double twist_angular_z = p_term_yaw + d_term_yaw;  // todo
+    msr::airlib::YawMode yaw_mode;
+    yaw_mode.is_rate = true;
+    yaw_mode.yaw_or_rate = math_utils::rad2deg(twist_angular_z);
+    double vel_cmd_duration = 0.05;
+
+    // enfore dynamic constraints
+    double vel_norm_horz = sqrt((twist_linear_x * twist_linear_x) + (twist_linear_y * twist_linear_y));
+
+    if (vel_norm_horz > constraints_.max_vel_horz_abs) {
+        twist_linear_x = (twist_linear_x / vel_norm_horz) * constraints_.max_vel_horz_abs;
+        twist_linear_y = (twist_linear_y / vel_norm_horz) * constraints_.max_vel_horz_abs;
+    }
+
+    if (std::fabs(twist_linear_z) > constraints_.max_vel_vert_abs) {
+        // todo just add a sgn funciton in common utils? return double to be safe.
+        // template <typename T> double sgn(T val) { return (T(0) < val) - (val < T(0)); }
+        twist_linear_z = (twist_linear_z / std::fabs(twist_linear_z)) * constraints_.max_vel_vert_abs;
+    }
+    // todo yaw limits
+    if (std::fabs(twist_linear_z) > constraints_.max_yaw_rate_degree) {
+        // todo just add a sgn funciton in common utils? return double to be safe.
+        // template <typename T> double sgn(T val) { return (T(0) < val) - (val < T(0)); }
+        twist_linear_z = (twist_linear_z / std::fabs(twist_linear_z)) * constraints_.max_yaw_rate_degree;
+    }
+    // move the drone
+    airsim_move_client_.moveByVelocityAsync(
+        twist_linear_x, twist_linear_y, twist_linear_z, vel_cmd_duration,
+        msr::airlib::DrivetrainType::MaxDegreeOfFreedom, yaw_mode,
+        config_.vehicle_name);
+  }
 }
 
 bool AirsimSimulator::readTransformFromRos(const std::string& topic,
