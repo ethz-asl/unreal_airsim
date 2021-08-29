@@ -90,7 +90,8 @@ class ConfigParser(object):
     def write_target_file(self):
         j = json.dumps(self.new_cfg, indent=2)
         f = open(self.target_file_path, 'w')
-        print >> f, j
+        #print >> f, j
+        print(j, file=f)
         f.close()
         self.log("Wrote config to target file '%s'." % self.target_file_path)
 

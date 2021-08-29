@@ -118,6 +118,10 @@ void FrameConverter::rosToAirsim(geometry_msgs::Point* point) const {
   transformPointRosToAirsim(&(point->x), &(point->y), &(point->z));
 }
 
+void FrameConverter::rosToAirsim(geometry_msgs::Vector3* vector) const {
+  transformPointRosToAirsim(&(vector->x), &(vector->y), &(vector->z));
+}
+
 void FrameConverter::rosToAirsim(geometry_msgs::Quaternion* orientation) const {
   transformOrientationRosToAirsim(&(orientation->w), &(orientation->x),
                                   &(orientation->y), &(orientation->z));
@@ -131,6 +135,11 @@ void FrameConverter::rosToAirsim(Eigen::Quaterniond* orientation) const {
 void FrameConverter::rosToAirsim(geometry_msgs::Pose* pose) const {
   rosToAirsim(&(pose->position));
   rosToAirsim(&(pose->orientation));
+}
+
+void FrameConverter::rosToAirsim(geometry_msgs::Transform* pose) const {
+  rosToAirsim(&(pose->translation));
+  rosToAirsim(&(pose->rotation));
 }
 
 }  // namespace unreal_airsim

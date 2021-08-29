@@ -1,6 +1,6 @@
 <launch>
   <!-- Voxblox arguments -->
-  <arg name="voxel_size" default="0.10"/>
+  <arg name="voxel_size" default="0.08"/>
   <arg name="voxels_per_side" default="16"/>
   <arg name="ray_length" default="5.0"/>
   <arg name="method" default="merged"/>
@@ -10,12 +10,14 @@
   <arg name="odom_noise_model" default="ground_truth"/>
   
   <!--  Experiment arguments -->  
-  <arg name="experiment_config" default="CityBuilding.yaml"/>
+  <arg name="experiment_config" default="CustomFlat.yaml"/>
   
   
   
 
   <!-- *** Run the Simulation *** -->
+<!-- Load experiment config -->
+  <rosparam command="load" file="$(find active_3d_planning_app_reconstruction)/cfg/experiments/$(arg experiment_config)"/>
 
 
   
@@ -30,34 +32,52 @@
 
   <!-- airsim client -->
   <node name="airsim_simulator" pkg="unreal_airsim" type="airsim_simulator_node" required="true" output="screen" args="-alsologtostderr">
-     <rosparam file="$(find unreal_airsim)/cfg/airsim_simulation.yaml"/>
+     <rosparam file="$(find unreal_airsim)/cfg/airsim.yaml"/>
   </node>
 
   
 <!--     Voxblox -->
-<!--  <node name="voxblox_node" pkg="voxblox_ros" type="esdf_server" output="screen" args="-alsologtostderr">-->
-<!--    <remap from="pointcloud" to="/unreal/online_perception/pointcloud"/>-->
-<!--    <param name="use_tf_transforms" value="true"/>-->
-<!--    <param name="publish_tsdf_map" value="false" />-->
-<!--    <param name="publish_esdf_map" value="false" />-->
-<!--    <param name="tsdf_voxel_size" value="0.30" />-->
-<!--    <param name="tsdf_voxels_per_side" value="16" />-->
-<!--    <param name="color_mode" value="color" />-->
-<!--    <param name="update_mesh_every_n_sec" value="1.0" />-->
-<!--    <param name="method" value="$(arg method)" />-->
-<!--    <param name="max_ray_length_m" value="25" />-->
-<!--    <param name="allow_clear" value="true" />-->
-<!--    <param name="verbose" value="$(arg verbose_voxblox)" />-->
-<!--    <param name="publish_map_incremental" value="true" />-->
-<!--  </node>-->
+ <node name="voxblox_node" pkg="voxblox_ros" type="esdf_server" output="screen" args="-alsologtostderr">
+   <remap from="pointcloud" to="/airsim_drone/Pointcloud"/>
+   <param name="use_tf_transforms" value="true"/>
+   <param name="publish_tsdf_map" value="true" />
+   <param name="publish_pointclouds_on_update" value="true" />
+   <param name="publish_esdf_map" value="true" />
+   <param name="tsdf_voxel_size" value="$(arg voxel_size)" />
+   <param name="tsdf_voxels_per_side" value="$(arg voxels_per_side)" />
+   <param name="color_mode" value="color" />
+   <param name="update_mesh_every_n_sec" value="1.0" />
+   <param name="method" value="$(arg method)" />
+   <param name="max_ray_length_m" value="25" />
+   <param name="allow_clear" value="true" />
+   <param name="verbose" value="$(arg verbose_voxblox)" />
+   <param name="publish_map_incremental" value="true" />
+ </node>
   
 <!--   <node name="voxgraph_mapper" pkg="voxgraph" type="voxgraph_mapping_node" output="screen">-->
 <!--    <rosparam file="$(find unreal_airsim)/cfg/voxgraph_mapper.yaml"/>-->
 <!--    <remap from="velodyne_points" to="/unreal/online_perception/pointcloud"/>-->
 <!--  </node>-->
+
+  <!-- <node name="planner_node" pkg="active_3d_planning_app_reconstruction" type="reconstruction_planner_node" output="screen" >
+      <remap from="planner_node/esdf_map_in" to="/voxblox_node/esdf_map_out" />
+      <remap from="planner_node/tsdf_map_in" to="/voxblox_node/tsdf_map_out" />
+      <param name="use_tf_transforms" value="false" />
+      <param name="tsdf_voxel_size" value="$(arg voxel_size)" />
+      <param name="tsdf_voxels_per_side" value="$(arg voxels_per_side)" />
+      <param name="update_mesh_every_n_sec" value="0.0" />   
+      <param name="publish_traversable" value="false" />         
+    
+      <remap from="odometry" to="/airsim_drone/ground_truth/odometry" />
+      <remap from="command/trajectory" to="/airsim_drone/command/trajectory" />
+      <remap from="command/pose" to="/airsim_drone/command/pose" />
+      
+      <rosparam command="load" file="$(find active_3d_planning_app_reconstruction)/cfg/planners/reconstruction_planner.yaml"/>
+    </node> 
+     -->
     
 
   <!-- RVIZ Visualization -->
-  <node type="rviz" name="rviz_voxblox" pkg="rviz" args="-d $(find unreal_airsim)/cfg/test_airsim.rviz"/>
+  <node type="rviz" name="rviz_voxblox" pkg="rviz" args="-d $(find unreal_airsim)/cfg/visualization/visualization.rviz"/>
   
 </launch>

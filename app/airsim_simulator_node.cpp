@@ -25,6 +25,9 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh("");
   ros::NodeHandle nh_private("~");
   signal(SIGINT, sigintHandler);
+  LOG(INFO) << "Setting up Airsim.";
+
+  ros::Duration(1.0).sleep();
   the_simulator =
       std::make_unique<unreal_airsim::AirsimSimulator>(nh, nh_private);
 
