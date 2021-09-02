@@ -147,6 +147,8 @@ void DepthToPointcloud::findMatchingMessagesToPublish(
   // If a modality is not used we count it as found.
   bool found_color = true;
   bool found_segmentation = true;
+  
+  std::lock_guard<std::mutex> guard(queue_guard);
 
   depth_it =
       std::find_if(depth_queue_.begin(), depth_queue_.end(),
