@@ -56,7 +56,6 @@ bool InfraredIdCompensation::setupFromRos(const ros::NodeHandle& nh,
 void InfraredIdCompensation::imageCallback(const sensor_msgs::ImagePtr& msg) {
   try {
     cv_bridge::CvImagePtr img = cv_bridge::toCvCopy(msg, msg->encoding);
-
     for (int v = 0; v < img->image.rows; v++) {
       for (int u = 0; u < img->image.cols; u++) {
         img->image.at<uchar>(v, u) =
