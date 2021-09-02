@@ -52,42 +52,9 @@ void PIDPositionController::reset_errors()
 
 void PIDPositionController::initialize_ros()
 {
-    //vel_cmd_ = airsim_ros_pkgs::VelCmd();
-    // ROS params
-    // double update_control_every_n_sec;
-    // nh_private_.getParam("update_control_every_n_sec", update_control_every_n_sec);
-
-    // ROS publishers
-    // airsim_vel_cmd_world_frame_pub_ = nh_private_.advertise<geometry_msgs::Twist>("/vel_cmd_world_frame", 1);
-
-    // ROS subscribers
-    //airsim_odom_sub_ = nh_.subscribe("/airsim_drone/ground_truth/odometry", 50, &PIDPositionController::airsim_odom_cb, this);
-    // todo publish this under global nodehandle / "airsim node" and hide it from user
-    //local_position_goal_srvr_ = nh_.advertiseService("/local_position_goal", &PIDPositionController::local_position_goal_srv_cb, this);
     
-    // ROS timers
-    //update_control_cmd_timer_ = nh_private_.createTimer(ros::Duration(update_control_every_n_sec), &PIDPositionController::update_control_cmd_timer_cb, this);
 }
 
-// void PIDPositionController::airsim_odom_cb(const nav_msgs::Odometry& odom_msg)
-// {
-//     has_odom_ = true;
-//     curr_odom_ = odom_msg;
-//     curr_position_.x = odom_msg.pose.pose.position.x;
-//     curr_position_.y = odom_msg.pose.pose.position.y;
-//     curr_position_.z = odom_msg.pose.pose.position.z;
-//     curr_position_.yaw = math_utils::get_yaw_from_quat_msg(odom_msg.pose.pose.orientation);
-// }
-
-// void PIDPositionController::airsim_odom(const geometry_msgs::Pose &pose)
-// {
-//     has_odom_ = true;
-//     curr_odom_ = odom_msg;
-//     curr_position_.x = pose.position.x;
-//     curr_position_.y = pose.position.y;
-//     curr_position_.z = pose.position.z;
-//     curr_position_.yaw = math_utils::get_yaw_from_quat_msg(pose.orientation);
-// }
 
 void PIDPositionController::set_yaw_position(const double x, const double y, const double z, const double yaw)
 {
@@ -137,8 +104,10 @@ void PIDPositionController::check_reached_goal()
     double diff_yaw = math_utils::angular_dist(target_position_.yaw, curr_position_.yaw);
 
     // todo save this in degrees somewhere to avoid repeated conversion
-    if (diff_xyz < params_.reached_thresh_xyz && diff_yaw < math_utils::deg2rad(params_.reached_yaw_degrees))
+    if (diff_xyz < params_.reached_thresh_xyz && std::abs(diff_yaw) < math_utils::deg2rad(params_.reached_yaw_degrees)) {
+        std::cout <<"diff_yaw:" <<diff_yaw <<"\ntarget_position_.yaw: "<<target_position_.yaw << "\ncurr_position_.yaw:"<<curr_position_.yaw<<std::endl;
         reached_goal_ = true;
+    }
 
 }
 
@@ -168,7 +137,7 @@ void PIDPositionController::tick()
             // dear future self, this function doesn't return coz we need to keep on actively hovering at last goal pose. don't act smart
         }
         else {
-            ROS_INFO_STREAM("[PIDPositionController] Moving to goal.");
+            //ROS_INFO_STREAM("[PIDPositionController] Moving to goal.");
         }
     }
 

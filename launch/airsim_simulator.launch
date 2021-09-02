@@ -31,7 +31,7 @@
 
 
   <!-- airsim client -->
-  <node name="airsim_simulator" pkg="unreal_airsim" type="airsim_simulator_node" required="true" output="screen" args="-alsologtostderr">
+  <node name="airsim_simulator" pkg="unreal_airsim" type="airsim_simulator_node"  required="true" output="screen" args="-alsologtostderr">
      <rosparam file="$(find unreal_airsim)/cfg/airsim.yaml"/>
   </node>
 
@@ -59,7 +59,7 @@
 <!--    <remap from="velodyne_points" to="/unreal/online_perception/pointcloud"/>-->
 <!--  </node>-->
 
-  <!-- <node name="planner_node" pkg="active_3d_planning_app_reconstruction" type="reconstruction_planner_node" output="screen" >
+  <node name="planner_node" pkg="active_3d_planning_app_reconstruction" type="reconstruction_planner_node" output="screen" >
       <remap from="planner_node/esdf_map_in" to="/voxblox_node/esdf_map_out" />
       <remap from="planner_node/tsdf_map_in" to="/voxblox_node/tsdf_map_out" />
       <param name="use_tf_transforms" value="false" />
@@ -72,9 +72,9 @@
       <remap from="command/trajectory" to="/airsim_drone/command/trajectory" />
       <remap from="command/pose" to="/airsim_drone/command/pose" />
       
-      <rosparam command="load" file="$(find active_3d_planning_app_reconstruction)/cfg/planners/reconstruction_planner.yaml"/>
+      <rosparam command="load" file="$(find active_3d_planning_app_reconstruction)/cfg/planners/exploration_planner.yaml"/>
     </node> 
-     -->
+    
     
 
   <!-- RVIZ Visualization -->

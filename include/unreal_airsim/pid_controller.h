@@ -37,7 +37,7 @@ class PIDParams {
         kd_z(0.2),
         kd_yaw(0.1),
         reached_thresh_xyz(0.1),
-        reached_yaw_degrees(5) {}
+        reached_yaw_degrees(0.1) {}
 
   bool load_from_rosparams(const ros::NodeHandle& nh);
 };
