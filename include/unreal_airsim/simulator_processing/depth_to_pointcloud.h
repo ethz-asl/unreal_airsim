@@ -8,6 +8,7 @@
 #include <sensor_msgs/Image.h>
 
 #include <deque>
+#include <mutex>
 #include <string>
 
 namespace unreal_airsim::simulator_processor {
@@ -42,6 +43,7 @@ class DepthToPointcloud : public ProcessorBase {
   std::deque<sensor_msgs::ImagePtr> depth_queue_;
   std::deque<sensor_msgs::ImagePtr> color_queue_;
   std::deque<sensor_msgs::ImagePtr> segmentation_queue_;
+  std::mutex queue_guard;
 
   // variables
   bool use_color_;

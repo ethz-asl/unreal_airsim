@@ -350,39 +350,39 @@ bool AirsimSimulator::setupROS() {
     }
   }
 
-  // // Simulator processors (find names and let them create themselves)
-  // std::vector<std::string> keys;
-  // nh_private_.getParamNames(keys);
-  // std::string proc_ns = "processors/";
-  // std::string full_ns = nh_private_.getNamespace() + "/" + proc_ns;
-  // std::string proc_name;
-  // std::vector<std::string> processors;
-  // size_t pos;
-  // for (auto const& key : keys) {
-  //   if ((pos = key.find(full_ns)) != std::string::npos) {
-  //     proc_name = key;
-  //     proc_name.erase(0, pos + full_ns.length());
-  //     pos = proc_name.find('/');
-  //     if (pos != std::string::npos) {
-  //       proc_name = proc_name.substr(0, pos);
-  //     }
-  //     if (std::find(processors.begin(), processors.end(), proc_name) ==
-  //         processors.end()) {
-  //       processors.push_back(proc_name);
-  //     }
-  //   }
-  // }
-  // for (auto const& name : processors) {
-  //   if (!nh_private_.hasParam(full_ns + name + "/processor_type")) {
-  //     LOG(ERROR) << "Sensor processor '" << name
-  //                << "' does not name a 'processor_type' and will be ignored.";
-  //     continue;
-  //   }
-  //   std::string type;
-  //   nh_private_.getParam(full_ns + name + "/processor_type", type);
-  //   processors_.push_back(simulator_processor::ProcessorFactory::createFromRos(
-  //       name, type, nh_, full_ns + name + "/", this));
-  // }
+  // Simulator processors (find names and let them create themselves)
+  std::vector<std::string> keys;
+  nh_private_.getParamNames(keys);
+  std::string proc_ns = "processors/";
+  std::string full_ns = nh_private_.getNamespace() + "/" + proc_ns;
+  std::string proc_name;
+  std::vector<std::string> processors;
+  size_t pos;
+  for (auto const& key : keys) {
+    if ((pos = key.find(full_ns)) != std::string::npos) {
+      proc_name = key;
+      proc_name.erase(0, pos + full_ns.length());
+      pos = proc_name.find('/');
+      if (pos != std::string::npos) {
+        proc_name = proc_name.substr(0, pos);
+      }
+      if (std::find(processors.begin(), processors.end(), proc_name) ==
+          processors.end()) {
+        processors.push_back(proc_name);
+      }
+    }
+  }
+  for (auto const& name : processors) {
+    if (!nh_private_.hasParam(full_ns + name + "/processor_type")) {
+      LOG(ERROR) << "Sensor processor '" << name
+                 << "' does not name a 'processor_type' and will be ignored.";
+      continue;
+    }
+    std::string type;
+    nh_private_.getParam(full_ns + name + "/processor_type", type);
+    processors_.push_back(simulator_processor::ProcessorFactory::createFromRos(
+        name, type, nh_, full_ns + name + "/", this));
+  }
   return true;
 }
 

@@ -148,6 +148,7 @@ void DepthToPointcloud::findMatchingMessagesToPublish(
   bool found_color = true;
   bool found_segmentation = true;
 
+  std::lock_guard<std::mutex> guard(queue_guard);
   depth_it =
       std::find_if(depth_queue_.begin(), depth_queue_.end(),
                    [reference_msg](const sensor_msgs::ImagePtr& s) {
@@ -157,6 +158,7 @@ void DepthToPointcloud::findMatchingMessagesToPublish(
     // Depth image is always necessary.
     return;
   }
+
 
   if (use_color_) {
     // Check whether there is a color image with matching timestamp.
@@ -185,6 +187,9 @@ void DepthToPointcloud::findMatchingMessagesToPublish(
   if (found_color && found_segmentation) {
     publishPointcloud(*depth_it, use_color_ ? *color_it : nullptr,
                       use_segmentation_ ? *segmentation_it : nullptr);
+    if(std::find(depth_queue_.begin(), depth_queue_.end(), *depth_it ) == depth_queue_.end()) {
+      std::cerr <<"Depth image not in queue!\n";
+    }
     depth_queue_.erase(depth_it);
     if (use_color_) {
       color_queue_.erase(color_it);
