@@ -217,13 +217,18 @@ void DepthToPointcloud::publishPointcloud(
     return;
   }
   cv_bridge::CvImageConstPtr depth_img, color_img, segmentation_img;
-  depth_img = cv_bridge::toCvShare(depth_ptr, depth_ptr->encoding);
-  if (use_color_) {
-    color_img = cv_bridge::toCvShare(color_ptr, color_ptr->encoding);
-  }
-  if (use_segmentation_) {
-    segmentation_img =
-        cv_bridge::toCvShare(segmentation_ptr, segmentation_ptr->encoding);
+  try {
+    depth_img = cv_bridge::toCvShare(depth_ptr, depth_ptr->encoding);
+    if (use_color_) {
+      color_img = cv_bridge::toCvShare(color_ptr, color_ptr->encoding);
+    }
+    if (use_segmentation_) {
+      segmentation_img =
+          cv_bridge::toCvShare(segmentation_ptr, segmentation_ptr->encoding);
+    }
+  } catch (const cv_bridge::Exception& e) {
+    std::cerr << "Exception in DepthToPointcloud::publishPointcloud() \n";
+    return;
   }
 
   // figure out number of points

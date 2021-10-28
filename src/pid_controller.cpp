@@ -82,7 +82,7 @@ bool PIDPositionController::set_target(const double x, const double y, const dou
         target_position_.z = z;
         target_position_.yaw = yaw;
 
-        ROS_INFO_STREAM("[PIDPositionController] got goal: x=" << target_position_.x << " y=" << target_position_.y << " z=" << target_position_.z << " yaw=" << target_position_.yaw);
+        //ROS_INFO_STREAM("[PIDPositionController] got goal: x=" << target_position_.x << " y=" << target_position_.y << " z=" << target_position_.z << " yaw=" << target_position_.yaw);
 
         // todo error checks
         // todo fill response
@@ -93,7 +93,7 @@ bool PIDPositionController::set_target(const double x, const double y, const dou
     }
 
     // Already have goal, and have reached it
-    ROS_INFO_STREAM("[PIDPositionController] Already have goal and have reached it");
+    //ROS_INFO_STREAM("[PIDPositionController] Already have goal and have reached it");
     return false;
 }
 
@@ -105,7 +105,6 @@ void PIDPositionController::check_reached_goal()
 
     // todo save this in degrees somewhere to avoid repeated conversion
     if (diff_xyz < params_.reached_thresh_xyz && std::abs(diff_yaw) < math_utils::deg2rad(params_.reached_yaw_degrees)) {
-        std::cout <<"diff_yaw:" <<diff_yaw <<"\ntarget_position_.yaw: "<<target_position_.yaw << "\ncurr_position_.yaw:"<<curr_position_.yaw<<std::endl;
         reached_goal_ = true;
     }
 
@@ -132,7 +131,7 @@ void PIDPositionController::tick()
     if (has_goal_) {
         check_reached_goal();
         if (reached_goal_) {
-            ROS_INFO_STREAM("[PIDPositionController] Reached goal! Hovering at position.");
+            //ROS_INFO_STREAM("[PIDPositionController] Reached goal! Hovering at position.");
             has_goal_ = false;
             // dear future self, this function doesn't return coz we need to keep on actively hovering at last goal pose. don't act smart
         }

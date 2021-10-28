@@ -426,13 +426,7 @@ void AirsimSimulator::commandTrajectorycallback(
   
   for (const auto& point : trajectory.points) {
     for (auto pose : point.transforms) {
-      std::cout << "Adding way point:"
-                << pose.rotation.x << " "
-                << pose.rotation.y << " "
-                << pose.rotation.z << " "
-                << pose.rotation.w << std::endl;
 
-    
       frame_converter_.rosToAirsim(&pose);
 
       auto* pt = new Waypoint;
@@ -455,11 +449,6 @@ void AirsimSimulator::commandTrajectorycallback(
   pt->isGoal = true;
   points.push(pt);
 
-  std::cout << "Adding goal point: "
-            << pt->pose.rotation.x << " "
-            << pt->pose.rotation.y << " "
-            << pt->pose.rotation.z << " "
-            << pt->pose.rotation.w << std::endl;
 }
 
 void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose& msg) {
@@ -626,7 +615,6 @@ void AirsimSimulator::trackWayPoints() {
           yaw = atan2(delta_y, delta_x);
         }
 
-        std::cout << "forcing yaw in view direction \n yaw: "<< yaw<< std::endl;
       } else {
         // Rotate to goal yaw
         tf::Quaternion q(
@@ -637,7 +625,6 @@ void AirsimSimulator::trackWayPoints() {
         m.getRPY(roll, pitch, yaw);
       }
       goal_yaw = yaw;
-      std::cout << "tracking goal yaw \n goal_yaw: "<< goal_yaw<< std::endl;
 
       // goal_received=true
       
@@ -650,13 +637,6 @@ void AirsimSimulator::trackWayPoints() {
       bool goal_reached = pid_controller_.is_goal_reached();
       
       if (goal_reached) {
-        if (current_goal->isGoal) {
-          // Reached Goal
-          std::cout << "reached a goal point" << std::endl;
-
-        } else {
-          std::cout << "reached a way point" << std::endl;
-        }
 
         // move to next way point
         auto* off = points.front();
