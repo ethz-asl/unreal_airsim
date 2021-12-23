@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# Python 2 support
+from __future__ import print_function
+
 import sys
 import os
 from datetime import datetime
@@ -16,7 +19,7 @@ class ConfigParser(object):
         # Params
         self.target_file_path = rospy.get_param(
             '~target_file_path', "")  # Where to write the target config
-        if self.target_file_path is "":
+        if self.target_file_path == "":
             self.target_file_path = os.path.join(os.path.expanduser("~"),
                                                  "Documents", "AirSim",
                                                  "settings.json")
@@ -86,11 +89,12 @@ class ConfigParser(object):
         info = "* Settings parsing finished successfully (%i Warnings, " \
                "%i Errors)! *" % (self.log_counter[1], self.log_counter[2])
         self.log("\n" + "*" * len(info) + "\n" + info + "\n" + "*" * len(info))
+        self.log("This process will now terminate. This is intended behavior.")
 
     def write_target_file(self):
         j = json.dumps(self.new_cfg, indent=2)
         f = open(self.target_file_path, 'w')
-        print >> f, j
+        print(j, end="", file=f)
         f.close()
         self.log("Wrote config to target file '%s'." % self.target_file_path)
 
@@ -186,33 +190,37 @@ class ConfigParser(object):
         """ Setup directory and backup existing configs if they have changed """
         backup_old_file = True
         if os.path.isfile(self.target_file_path):
-            with open(self.target_file_path) as json_file:
-                old_cfg = {}
-                try:
-                    old_cfg = json.load(json_file)
-                except OSError:
-                    backup_old_file = True
-                    self.log("Existing file '%s' could not be read." %
-                             self.target_file_path)
-                if "ConfigParserInfo" in old_cfg:
-                    time_str = old_cfg["ConfigParserInfo"]
-                    time_str = time_str[-21:-1]
-                    time = datetime.strptime(time_str, "%d.%m.%Y, %H:%M:%S")
-                    change_time = datetime.fromtimestamp(
-                        os.path.getmtime(self.target_file_path))
-                    if (change_time - time).total_seconds() < 30:
-                        # file has not changed, we give 30s leeway for parsing
-                        backup_old_file = False
-                        self.log(
-                            "Existing file '%s' was auto-generated and will be "
-                            "overwritten." % self.target_file_path)
-                    else:
-                        self.log(
-                            "Existing file '%s' has been changed since auto-"
-                            "generation." % self.target_file_path)
-                elif old_cfg is {}:
-                    self.log("Existing file '%s' was not auto-generated." %
-                             self.target_file_path)
+            if os.stat(self.target_file_path).st_size != 0:
+                with open(self.target_file_path) as json_file:                    
+                    old_cfg = {}
+                    try:
+                        old_cfg = json.load(json_file)
+                    except OSError:
+                        backup_old_file = True
+                        self.log("Existing file '%s' could not be read." %
+                                self.target_file_path)
+                    if "ConfigParserInfo" in old_cfg:
+                        time_str = old_cfg["ConfigParserInfo"]
+                        time_str = time_str[-21:-1]
+                        time = datetime.strptime(time_str, "%d.%m.%Y, %H:%M:%S")
+                        change_time = datetime.fromtimestamp(
+                            os.path.getmtime(self.target_file_path))
+                        if (change_time - time).total_seconds() < 30:
+                            # file has not changed, we give 30s leeway for parsing
+                            backup_old_file = False
+                            self.log(
+                                "Existing file '%s' was auto-generated and will be "
+                                "overwritten." % self.target_file_path)
+                        else:
+                            self.log(
+                                "Existing file '%s' has been changed since auto-"
+                                "generation." % self.target_file_path)
+                    elif old_cfg is {}:
+                        self.log("Existing file '%s' was not auto-generated." %
+                                self.target_file_path)
+            else:
+                self.log(f"Existing file {self.target_file_path} is empty.")
+                backup_old_file = False
 
         else:
             self.log("No existing '%s' found." % self.target_file_path)
@@ -264,7 +272,11 @@ class ConfigParser(object):
             dict_out["Y"] = -list_in[1][3]
             dict_out["Z"] = -list_in[2][3]
             R = [x[:3] for x in list_in[:3]]
-            R = Rotation.from_dcm(R)
+            # Support python 2 and 3 scipy versions.
+            if sys.version_info >= (3, 0):
+                R = Rotation.from_matrix(R)
+            else:
+                R = Rotation.from_dcm(R)
             euler = R.as_euler(
                 'xyz', degrees=True
             )  # Airsim is quite inconsistent here with rotation parametrization
