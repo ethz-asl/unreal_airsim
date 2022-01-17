@@ -150,7 +150,7 @@ void DepthToPointcloud::findMatchingMessagesToPublish(
 
   // Make this blocking since this process alters the queue elements in multiple
   // threads.
-  std::lock_guard<std::mutex> guard(queue_guard);
+  std::lock_guard<std::mutex> guard(queue_mutex_);
   depth_it =
       std::find_if(depth_queue_.begin(), depth_queue_.end(),
                    [reference_msg](const sensor_msgs::ImagePtr& s) {

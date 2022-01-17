@@ -2,14 +2,20 @@
 #define UNREAL_AIRSIM_ONLINE_SIMULATOR_SIMULATOR_H_
 
 #include <memory>
+#include <queue>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <std_msgs/Time.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <trajectory_msgs/MultiDOFJointTrajectory.h>
 
 // AirSim
 #include <common/CommonStructs.hpp>
@@ -17,11 +23,18 @@
 
 #include "unreal_airsim/frame_converter.h"
 #include "unreal_airsim/online_simulator/sensor_timer.h"
+#include "unreal_airsim/simulator_processing/pid_controller.h"
 #include "unreal_airsim/simulator_processing/processor_base.h"
 
 #include "unreal_airsim/simulator_processing/odometry_drift_simulator/odometry_drift_simulator.h"
 
 namespace unreal_airsim {
+
+typedef struct Waypoint {
+  geometry_msgs::Transform_<std::allocator<void>> pose;
+  bool isGoal{};
+} Waypoint;
+
 /***
  * This class implements a simulation interface with airsim.
  * Current application case is for a single Multirotor Vehicle.
@@ -96,6 +109,12 @@ class AirsimSimulator {
    */
   void commandPoseCallback(const geometry_msgs::Pose& msg);
 
+  // added from trajectory caller node
+  void commandTrajectorycallback(
+      const trajectory_msgs::MultiDOFJointTrajectory trajectory);
+
+  void trackWayPoints();
+
   // Acessors
   const Config& getConfig() const { return config_; }
   const FrameConverter& getFrameConverter() const { return frame_converter_; }
@@ -116,14 +135,28 @@ class AirsimSimulator {
   ros::Publisher sim_is_ready_pub_;
   ros::Publisher time_pub_;
   ros::Subscriber command_pose_sub_;
+  ros::Subscriber command_trajectory_sub_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::StaticTransformBroadcaster static_tf_broadcaster_;
 
   // Odometry simulator
   OdometryDriftSimulator odometry_drift_simulator_;
+  std::queue<Waypoint*> points;
+  Waypoint* current_goal;
+  // Whether robot is idle or currently tracking a goal
+  bool followingGoal;
+  bool only_move_in_yaw_direction;
+  // Current yaw of the goal position
+  double goal_yaw;
 
   // Read sim time from AirSim
   std::thread timer_thread_;
+
+  bool reached_goal_;
+  bool has_goal_;
+  bool got_goal_once_;
+
+  PIDPositionController pid_controller_;
 
   // components
   std::vector<std::unique_ptr<SensorTimer>>
