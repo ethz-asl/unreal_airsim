@@ -38,7 +38,6 @@ catkin_package()
 cs_add_library(${PROJECT_NAME}
         # Modules
         src/frame_converter.cpp
-        src/pid_controller.cpp
         src/online_simulator/simulator.cpp
         src/online_simulator/sensor_timer.cpp
         src/simulator_processing/processor_factory.cpp
@@ -46,6 +45,7 @@ cs_add_library(${PROJECT_NAME}
         src/simulator_processing/infrared_id_compensation.cpp
         src/simulator_processing/odometry_drift_simulator/odometry_drift_simulator.cpp
         src/simulator_processing/odometry_drift_simulator/normal_distribution.cpp
+        src/simulator_processing/pid_controller.cpp
         )
 
 ###############
