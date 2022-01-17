@@ -38,6 +38,7 @@ catkin_package()
 cs_add_library(${PROJECT_NAME}
         # Modules
         src/frame_converter.cpp
+        src/pid_controller.cpp
         src/online_simulator/simulator.cpp
         src/online_simulator/sensor_timer.cpp
         src/simulator_processing/processor_factory.cpp

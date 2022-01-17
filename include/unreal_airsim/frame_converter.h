@@ -42,9 +42,11 @@ class FrameConverter {
 
   void rosToAirsim(Eigen::Vector3d* point) const;
   void rosToAirsim(geometry_msgs::Point* point) const;
+  void rosToAirsim(geometry_msgs::Vector3* vector) const;
   void rosToAirsim(Eigen::Quaterniond* orientation) const;
   void rosToAirsim(geometry_msgs::Quaternion* orientation) const;
   void rosToAirsim(geometry_msgs::Pose* pose) const;
+  void rosToAirsim(geometry_msgs::Transform* pose) const;
 
   // transformations
   void transformPointAirsimToRos(double* x, double* y, double* z) const;
