@@ -94,8 +94,6 @@ bool PIDPositionController::set_target(const double x, const double y,
   }
 
   // Already have goal, and have reached it
-  // ROS_INFO_STREAM("[PIDPositionController] Already have goal and have reached
-  // it");
   return false;
 }
 
@@ -191,17 +189,11 @@ void PIDPositionController::enforce_dynamic_constraints() {
   }
 
   if (std::fabs(vel_cmd_.linear.z) > constraints_.max_vel_vert_abs) {
-    // todo just add a sgn funciton in common utils? return double to be safe.
-    // template <typename T> double sgn(T val) { return (T(0) < val) - (val <
-    // T(0)); }
     vel_cmd_.linear.z = (vel_cmd_.linear.z / std::fabs(vel_cmd_.linear.z)) *
                         constraints_.max_vel_vert_abs;
   }
   // todo yaw limits
   if (std::fabs(vel_cmd_.linear.z) > constraints_.max_yaw_rate_degree) {
-    // todo just add a sgn funciton in common utils? return double to be safe.
-    // template <typename T> double sgn(T val) { return (T(0) < val) - (val <
-    // T(0)); }
     vel_cmd_.linear.z = (vel_cmd_.linear.z / std::fabs(vel_cmd_.linear.z)) *
                         constraints_.max_yaw_rate_degree;
   }
