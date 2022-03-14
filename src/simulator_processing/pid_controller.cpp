@@ -66,7 +66,7 @@ PIDPositionController::PIDPositionController(const ros::NodeHandle& nh,
       reached_goal_(false),
       got_goal_once_(false) {
   params_.load_from_rosparams(nh_private_);
-  constraints_.load_from_rosparams(nh_);
+  constraints_.load_from_rosparams(nh_private_);
   initialize_ros();
   reset_errors();
 }
@@ -219,9 +219,11 @@ void PIDPositionController::enforce_dynamic_constraints() {
                         constraints_.max_vel_vert_abs;
   }
   // todo yaw limits
-  if (std::fabs(vel_cmd_.angular.z) > constraints_.max_yaw_rate_degree) {
-    vel_cmd_.angular.z = (vel_cmd_.angular.z / std::fabs(vel_cmd_.angular.z)) *
-                        constraints_.max_yaw_rate_degree;
+  const double max_yaw_rate_rad =
+      constraints_.max_yaw_rate_degree / 180.0 * M_PI;
+  if (std::fabs(vel_cmd_.angular.z) > max_yaw_rate_rad) {
+    vel_cmd_.angular.z =
+        (vel_cmd_.angular.z / std::fabs(vel_cmd_.angular.z)) * max_yaw_rate_rad;
   }
 }
 
