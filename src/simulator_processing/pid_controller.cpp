@@ -5,18 +5,38 @@ namespace unreal_airsim {
 bool PIDParams::load_from_rosparams(const ros::NodeHandle& nh) {
   bool found = true;
 
-  found = nh.getParam("kp_x", kp_x) && found;
-  found = nh.getParam("kp_y", kp_y) && found;
-  found = nh.getParam("kp_z", kp_z) && found;
-  found = nh.getParam("kp_yaw", kp_yaw) && found;
+  if (!nh.getParam("kp_x", kp_x)) {
+    found = false;
+  }
+  if (!nh.getParam("kp_y", kp_y)) {
+    found = false;
+  }
+  if (!nh.getParam("kp_z", kp_z)) {
+    found = false;
+  }
+  if (!nh.getParam("kp_yaw", kp_yaw)) {
+    found = false;
+  }
 
-  found = nh.getParam("kd_x", kd_x) && found;
-  found = nh.getParam("kd_y", kd_y) && found;
-  found = nh.getParam("kd_z", kd_z) && found;
-  found = nh.getParam("kd_yaw", kd_yaw) && found;
+  if (!nh.getParam("kd_x", kd_x)) {
+    found = false;
+  }
+  if (!nh.getParam("kd_y", kd_y)) {
+    found = false;
+  }
+  if (!nh.getParam("kd_z", kd_z)) {
+    found = false;
+  }
+  if (!nh.getParam("kd_yaw", kd_yaw)) {
+    found = false;
+  }
 
-  found = nh.getParam("reached_thresh_xyz", reached_yaw_degrees) && found;
-  found = nh.getParam("reached_yaw_degrees", reached_yaw_degrees) && found;
+  if (!nh.getParam("reached_thresh_xyz", reached_yaw_degrees)) {
+    found = false;
+  }
+  if (!nh.getParam("reached_yaw_degrees", reached_yaw_degrees)) {
+    found = false;
+  }
 
   return found;
 }
@@ -24,9 +44,15 @@ bool PIDParams::load_from_rosparams(const ros::NodeHandle& nh) {
 bool DynamicConstraints::load_from_rosparams(const ros::NodeHandle& nh) {
   bool found = true;
 
-  found = nh.getParam("max_vel_horz_abs", max_vel_horz_abs) && found;
-  found = nh.getParam("max_vel_vert_abs", max_vel_vert_abs) && found;
-  found = nh.getParam("max_yaw_rate_degree", max_yaw_rate_degree) && found;
+  if (!nh.getParam("max_vel_horz_abs", max_vel_horz_abs)) {
+    found = false;
+  }
+  if (!nh.getParam("max_vel_vert_abs", max_vel_vert_abs)) {
+    found = false;
+  }
+  if (!nh.getParam("max_yaw_rate_degree", max_yaw_rate_degree)) {
+    found = false;
+  }
 
   return found;
 }
