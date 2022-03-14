@@ -221,6 +221,11 @@ void DepthToPointcloud::publishPointcloud(
   if (pub_.getNumSubscribers() == 0) {
     return;
   }
+  if (depth_ptr->height == 0) {
+    LOG(WARNING) << "Received empty depth image, skipping frame.";
+    return;
+  }
+
   cv_bridge::CvImageConstPtr depth_img, color_img, segmentation_img;
   try {
     depth_img = cv_bridge::toCvShare(depth_ptr, depth_ptr->encoding);
