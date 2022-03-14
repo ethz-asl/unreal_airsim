@@ -219,8 +219,8 @@ void PIDPositionController::enforce_dynamic_constraints() {
                         constraints_.max_vel_vert_abs;
   }
   // todo yaw limits
-  if (std::fabs(vel_cmd_.linear.z) > constraints_.max_yaw_rate_degree) {
-    vel_cmd_.linear.z = (vel_cmd_.linear.z / std::fabs(vel_cmd_.linear.z)) *
+  if (std::fabs(vel_cmd_.angular.z) > constraints_.max_yaw_rate_degree) {
+    vel_cmd_.angular.z = (vel_cmd_.angular.z / std::fabs(vel_cmd_.angular.z)) *
                         constraints_.max_yaw_rate_degree;
   }
 }
