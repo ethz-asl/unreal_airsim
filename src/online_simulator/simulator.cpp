@@ -87,8 +87,10 @@ bool AirsimSimulator::readParamsFromRos() {
   nh_private_.param("velocity", config_.velocity, defaults.velocity);
   nh_private_.param("publish_sensor_transforms",
                     config_.publish_sensor_transforms,
-                    defaults.publish_sensor_transforms);
-
+                    defaults.publish_sensor_transforms);rest_timer
+nh_private_.param("reset_timer",
+                    config_.reset_timer,
+                    defaults.reset_timer);
   // Verify params valid
   if (config_.state_refresh_rate <= 0.0) {
     config_.state_refresh_rate = defaults.state_refresh_rate;
@@ -810,8 +812,10 @@ void AirsimSimulator::onShutdown() {
   }
   sim_state_timer_ = ros::Timer();
   if (is_connected_) {
-    LOG(INFO) << "Shutting down: resetting airsim server in 10 seconds.";
-    sleep(10);
+    if (config_.reset_timer > 0.f) {
+    LOG(INFO) << "Shutting down: resetting airsim server in "<< config_.reset_timer<<" seconds.";
+    sleep(config_.reset_timer);
+    }
     LOG(INFO) << "Shutting down: Resetting airsim server.";
     airsim_state_client_.reset();
     airsim_state_client_.enableApiControl(false);

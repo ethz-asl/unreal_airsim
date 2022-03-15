@@ -62,11 +62,13 @@ class AirsimSimulator {
         msr::airlib::DrivetrainType::MaxDegreeOfFreedom;  // this is currently
                                                           // fixed
 
+    float reset_timer = 5.f; // s, time to let AirSim settle before resetting.
     // sensors
     bool publish_sensor_transforms = true;  // publish transforms when receiving
     // sensor measurements to guarantee correct tfs.
     // TODO(schmluk): This is mostly a time syncing problem, maybe easiest to
     //  publish the body pose based on these readings.
+
     struct Sensor {
       inline static const std::string TYPE_CAMERA = "Camera";
       inline static const std::string TYPE_LIDAR = "Lidar";
@@ -83,6 +85,7 @@ class AirsimSimulator {
       Eigen::Vector3d translation;  // T_B_S, default is unit transform
       Eigen::Quaterniond rotation;
     };
+
     struct Camera : Sensor {
       std::string image_type_str = "Scene";
       bool pixels_as_float = false;
@@ -90,6 +93,7 @@ class AirsimSimulator {
           msr::airlib::ImageCaptureBase::ImageType::Scene;
       msr::airlib::CameraInfo camera_info;  // The info is read from UE4
     };
+
     std::vector<std::unique_ptr<Sensor>> sensors;
   };
 
