@@ -87,7 +87,7 @@ bool AirsimSimulator::readParamsFromRos() {
   nh_private_.param("velocity", config_.velocity, defaults.velocity);
   nh_private_.param("publish_sensor_transforms",
                     config_.publish_sensor_transforms,
-                    defaults.publish_sensor_transforms);rest_timer
+                    defaults.publish_sensor_transforms);
 nh_private_.param("reset_timer",
                     config_.reset_timer,
                     defaults.reset_timer);
