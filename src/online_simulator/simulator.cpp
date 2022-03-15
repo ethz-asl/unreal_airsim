@@ -535,7 +535,7 @@ bool AirsimSimulator::startSimTimer() {
     LOG(INFO) << "Using sim time: AirSim time will be published as ROS time by "
                  "the simulator.";
     std::thread([this]() {
-      while (is_connected_) {
+      while (is_connected_ && !is_shutdown_) {
         auto next = std::chrono::steady_clock::now() +
                     std::chrono::milliseconds(config_.time_publisher_interval);
         readSimTimeCallback();
@@ -808,8 +808,11 @@ void AirsimSimulator::onShutdown() {
   for (const auto& timer : sensor_timers_) {
     timer->signalShutdown();
   }
+  sim_state_timer_ = ros::Timer();
   if (is_connected_) {
-    LOG(INFO) << "Shutting down: resetting airsim server.";
+    LOG(INFO) << "Shutting down: resetting airsim server in 10 seconds.";
+    sleep(10);
+    LOG(INFO) << "Shutting down: Resetting airsim server.";
     airsim_state_client_.reset();
     airsim_state_client_.enableApiControl(false);
   }
