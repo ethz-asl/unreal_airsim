@@ -45,6 +45,7 @@ cs_add_library(${PROJECT_NAME}
         src/simulator_processing/infrared_id_compensation.cpp
         src/simulator_processing/odometry_drift_simulator/odometry_drift_simulator.cpp
         src/simulator_processing/odometry_drift_simulator/normal_distribution.cpp
+        src/simulator_processing/pid_controller.cpp
         )
 
 ###############

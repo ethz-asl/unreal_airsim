@@ -40,7 +40,7 @@ class DepthToPointcloud : public ProcessorBase {
   ros::Subscriber segmentation_sub_;
 
   // queues
-  std::mutex queue_guard;
+  std::mutex queue_mutex_;
   std::deque<sensor_msgs::ImagePtr> depth_queue_;
   std::deque<sensor_msgs::ImagePtr> color_queue_;
   std::deque<sensor_msgs::ImagePtr> segmentation_queue_;

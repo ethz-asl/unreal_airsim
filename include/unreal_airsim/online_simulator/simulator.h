@@ -2,14 +2,20 @@
 #define UNREAL_AIRSIM_ONLINE_SIMULATOR_SIMULATOR_H_
 
 #include <memory>
+#include <queue>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <std_msgs/Time.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <trajectory_msgs/MultiDOFJointTrajectory.h>
 
 // AirSim
 #include <common/CommonStructs.hpp>
@@ -17,11 +23,18 @@
 
 #include "unreal_airsim/frame_converter.h"
 #include "unreal_airsim/online_simulator/sensor_timer.h"
+#include "unreal_airsim/simulator_processing/pid_controller.h"
 #include "unreal_airsim/simulator_processing/processor_base.h"
 
 #include "unreal_airsim/simulator_processing/odometry_drift_simulator/odometry_drift_simulator.h"
 
 namespace unreal_airsim {
+
+typedef struct Waypoint {
+  geometry_msgs::Transform_<std::allocator<void>> pose;
+  bool isGoal{};
+} Waypoint;
+
 /***
  * This class implements a simulation interface with airsim.
  * Current application case is for a single Multirotor Vehicle.
@@ -49,11 +62,13 @@ class AirsimSimulator {
         msr::airlib::DrivetrainType::MaxDegreeOfFreedom;  // this is currently
                                                           // fixed
 
+    float reset_timer = 5.f; // s, time to let AirSim settle before resetting.
     // sensors
     bool publish_sensor_transforms = true;  // publish transforms when receiving
     // sensor measurements to guarantee correct tfs.
     // TODO(schmluk): This is mostly a time syncing problem, maybe easiest to
     //  publish the body pose based on these readings.
+
     struct Sensor {
       inline static const std::string TYPE_CAMERA = "Camera";
       inline static const std::string TYPE_LIDAR = "Lidar";
@@ -70,6 +85,7 @@ class AirsimSimulator {
       Eigen::Vector3d translation;  // T_B_S, default is unit transform
       Eigen::Quaterniond rotation;
     };
+
     struct Camera : Sensor {
       std::string image_type_str = "Scene";
       bool pixels_as_float = false;
@@ -77,6 +93,7 @@ class AirsimSimulator {
           msr::airlib::ImageCaptureBase::ImageType::Scene;
       msr::airlib::CameraInfo camera_info;  // The info is read from UE4
     };
+
     std::vector<std::unique_ptr<Sensor>> sensors;
   };
 
@@ -95,6 +112,12 @@ class AirsimSimulator {
    * set pose should do for most purposes.
    */
   void commandPoseCallback(const geometry_msgs::Pose& msg);
+
+  // added from trajectory caller node
+  void commandTrajectorycallback(
+      const trajectory_msgs::MultiDOFJointTrajectory trajectory);
+
+  void trackWayPoints();
 
   // Acessors
   const Config& getConfig() const { return config_; }
@@ -116,14 +139,28 @@ class AirsimSimulator {
   ros::Publisher sim_is_ready_pub_;
   ros::Publisher time_pub_;
   ros::Subscriber command_pose_sub_;
+  ros::Subscriber command_trajectory_sub_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::StaticTransformBroadcaster static_tf_broadcaster_;
 
   // Odometry simulator
   OdometryDriftSimulator odometry_drift_simulator_;
+  std::queue<Waypoint*> points;
+  Waypoint* current_goal;
+  // Whether robot is idle or currently tracking a goal
+  bool followingGoal;
+  bool only_move_in_yaw_direction;
+  // Current yaw of the goal position
+  double goal_yaw;
 
   // Read sim time from AirSim
   std::thread timer_thread_;
+
+  bool reached_goal_;
+  bool has_goal_;
+  bool got_goal_once_;
+
+  PIDPositionController pid_controller_;
 
   // components
   std::vector<std::unique_ptr<SensorTimer>>

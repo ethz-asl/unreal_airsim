@@ -19,6 +19,7 @@ STRICT_MODE_ON
 #include <nav_msgs/Odometry.h>
 #include <rosgraph_msgs/Clock.h>
 #include <std_msgs/Bool.h>
+#include <tf/transform_datatypes.h>
 #include <tf2/utils.h>
 
 #include <glog/logging.h>
@@ -38,6 +39,11 @@ AirsimSimulator::AirsimSimulator(const ros::NodeHandle& nh,
       is_connected_(false),
       is_running_(false),
       is_shutdown_(false),
+      followingGoal(false),
+      only_move_in_yaw_direction(false),
+      goal_yaw(0),
+      has_goal_(false),
+      pid_controller_(nh, nh_private),
       odometry_drift_simulator_(
           OdometryDriftSimulator::Config::fromRosParams(nh_private)) {
   // configure
@@ -56,11 +62,13 @@ AirsimSimulator::AirsimSimulator(const ros::NodeHandle& nh,
   // setup everything
   initializeSimulationFrame();
   setupROS();
+  LOG(INFO) << "setup ROS";
   startSimTimer();
-
+  LOG(INFO) << "setting up timer.";
   // Startup the vehicle simulation via callback
   startup_timer_ = nh_private_.createTimer(
       ros::Duration(0.1), &AirsimSimulator::startupCallback, this);
+  LOG(INFO) << "Setup timer.";
 }
 
 bool AirsimSimulator::readParamsFromRos() {
@@ -80,7 +88,9 @@ bool AirsimSimulator::readParamsFromRos() {
   nh_private_.param("publish_sensor_transforms",
                     config_.publish_sensor_transforms,
                     defaults.publish_sensor_transforms);
-
+nh_private_.param("reset_timer",
+                    config_.reset_timer,
+                    defaults.reset_timer);
   // Verify params valid
   if (config_.state_refresh_rate <= 0.0) {
     config_.state_refresh_rate = defaults.state_refresh_rate;
@@ -281,7 +291,11 @@ bool AirsimSimulator::setupROS() {
       nh_.subscribe(config_.vehicle_name + "/command/pose", 10,
                     &AirsimSimulator::commandPoseCallback, this);
 
-  // sensors
+  command_trajectory_sub_ =
+      nh_.subscribe(config_.vehicle_name + "/command/trajectory", 10,
+                    &AirsimSimulator::commandTrajectorycallback, this);
+
+  // // sensors
   for (size_t i = 0; i < config_.sensors.size(); ++i) {
     // Find or allocate the sensor timer
     SensorTimer* timer = nullptr;
@@ -308,10 +322,10 @@ bool AirsimSimulator::setupROS() {
       // This assumes the camera exists, which should always be the case with
       // the auto-generated-config.
       camera->camera_info = airsim_move_client_.simGetCameraInfo(
-              camera->name, config_.vehicle_name);
+          camera->name, config_.vehicle_name);
       // TODO(Schmluk): Might want to also publish the camera info or convert
       // to intrinsics etc
-     }
+    }
 
     if (!config_.publish_sensor_transforms) {
       // Broadcast all sensor mounting transforms via static tf.
@@ -405,6 +419,38 @@ bool AirsimSimulator::initializeSimulationFrame() {
   return true;
 }
 
+// Callback for trajectories published by active plner
+void AirsimSimulator::commandTrajectorycallback(
+    const trajectory_msgs::MultiDOFJointTrajectory trajectory) {
+  if (!is_running_) {
+    return;
+  }
+
+  for (const auto& point : trajectory.points) {
+    for (auto pose : point.transforms) {
+      frame_converter_.rosToAirsim(&pose);
+
+      auto* pt = new Waypoint;
+      pt->pose = pose;
+      pt->isGoal = false;
+      points.push(pt);
+    }
+  }
+  // Add goal point for yaw tracking as last point
+  auto* lastPose = points.back();
+  auto* pt = new Waypoint;
+  pt->pose.translation.x = lastPose->pose.translation.x;
+  pt->pose.translation.y = lastPose->pose.translation.y;
+  pt->pose.translation.z = lastPose->pose.translation.z;
+
+  pt->pose.rotation.y = lastPose->pose.rotation.y;
+  pt->pose.rotation.x = lastPose->pose.rotation.x;
+  pt->pose.rotation.z = lastPose->pose.rotation.z;
+  pt->pose.rotation.w = lastPose->pose.rotation.w;
+  pt->isGoal = true;
+  points.push(pt);
+}
+
 void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose& msg) {
   if (!is_running_) {
     return;
@@ -422,28 +468,43 @@ void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose& msg) {
 
   // Use position + yaw as setpoint
   auto command_pos = T_gt_command.getPosition();
+
   auto command_ori = T_gt_command.getEigenQuaternion();
+  std::cout << "Pose Orientation In ROS Frame: " << command_ori.x() << " "
+            << command_ori.y() << " " << command_ori.z() << " "
+            << command_ori.w() << std::endl;
   frame_converter_.rosToAirsim(&command_ori);
+  std::cout << "Pose Orientation In Airsim Frame: " << command_ori.x() << " "
+            << command_ori.y() << " " << command_ori.z() << " "
+            << command_ori.w() << std::endl;
   double yaw = tf2::getYaw(
       tf2::Quaternion(command_ori.x(), command_ori.y(), command_ori.z(),
                       command_ori.w()));  // Eigen's eulerAngles apparently
   // messes up some wrap arounds or direcions and gets the wrong yaws in some
   // cases
+  // config_.velocity =0.2f;
   yaw = yaw / M_PI * 180.0;
   constexpr double kMinMovingDistance = 0.1;  // m
   airsim_move_client_.cancelLastTask();
   if ((command_pos - t_gt_current_position).norm() >= kMinMovingDistance) {
     frame_converter_.rosToAirsim(&command_pos);
     auto yaw_mode = msr::airlib::YawMode(false, yaw);
+    float look_ahead = -1, adaptive_lookahead = 0;
     airsim_move_client_.moveToPositionAsync(
         command_pos.x(), command_pos.y(), command_pos.z(), config_.velocity,
-        3600, config_.drive_train_type, yaw_mode, -1, 1, config_.vehicle_name);
+        3600, config_.drive_train_type, yaw_mode, look_ahead,
+        adaptive_lookahead, config_.vehicle_name);
+    std::cout << "Moving to target position with " << look_ahead
+              << " lookahead and " << adaptive_lookahead
+              << " as adaptive lookahead and velocity " << config_.velocity
+              << std::endl;
   } else {
     // This second command catches the case if the total distance is too small,
     // where the moveToPosition command returns without satisfying the yaw. If
     // this is always run then apparently sometimes the move command is
     // overwritten.
     airsim_move_client_.rotateToYawAsync(yaw, 3600, 5, config_.vehicle_name);
+    std::cout << "No moving, only rotating" << std::endl;
   }
 }
 
@@ -473,8 +534,10 @@ bool AirsimSimulator::startSimTimer() {
    * time_publisher_interval).
    */
   if (use_sim_time_) {
+    LOG(INFO) << "Using sim time: AirSim time will be published as ROS time by "
+                 "the simulator.";
     std::thread([this]() {
-      while (is_connected_) {
+      while (is_connected_ && !is_shutdown_) {
         auto next = std::chrono::steady_clock::now() +
                     std::chrono::milliseconds(config_.time_publisher_interval);
         readSimTimeCallback();
@@ -510,6 +573,91 @@ ros::Time AirsimSimulator::getTimeStamp(msr::airlib::TTimePoint airsim_stamp) {
     return t;
   } else {
     return ros::Time::now();
+  }
+}
+
+void AirsimSimulator::trackWayPoints() {
+  // if there are waypoints that need to be followed
+  // send desired velocity commands to PID Ccontroller
+  // to follow the waypoints
+  if (!points.empty()) {
+    // just found a new waypoint. After
+    // setting it as target
+
+    // get current position
+    geometry_msgs::Pose pose;
+    tf::poseKindrToMsg(odometry_drift_simulator_.getSimulatedPose(), &pose);
+    frame_converter_.rosToAirsim(&pose);
+    auto current_position = pose.position;
+
+    // updation current position for pid controller
+    double current_yaw = math_utils::getYawFromQuaternionMsg(pose.orientation);
+    pid_controller_.set_yaw_position(current_position.x, current_position.y,
+                                     current_position.z, current_yaw);
+
+    if (!followingGoal) {
+      // Get next point to track
+      current_goal = points.front();
+      auto target_position = current_goal->pose.translation;
+
+      double yaw;
+
+      if (only_move_in_yaw_direction && !current_goal->isGoal) {
+        // We are currently tracking waypoints and not final goalpoints
+        // If only move in yaw direction, set yaw of waypoints (except goal
+        // point) to moving direction
+        auto delta_x = target_position.x - current_position.x;
+        auto delta_y = target_position.y - current_position.y;
+        if (abs(delta_x) + abs(delta_y) <= 0.1) {
+          // If we overshoot over the goalpoint, the robot will rotate 180 deg
+          // and drive back for a really small amount. Check if overshoot
+          // occured (delta really small) and don't turn around in this case
+          yaw = goal_yaw;
+        } else {
+          yaw = atan2(delta_y, delta_x);
+        }
+
+      } else {
+        // Rotate to goal yaw
+        tf::Quaternion q(
+            current_goal->pose.rotation.x, current_goal->pose.rotation.y,
+            current_goal->pose.rotation.z, current_goal->pose.rotation.w);
+        tf::Matrix3x3 m(q);
+        double roll, pitch;
+        m.getRPY(roll, pitch, yaw);
+      }
+      goal_yaw = yaw;
+
+      // goal_received=true
+
+      if (pid_controller_.set_target(target_position.x, target_position.y,
+                                     target_position.z, goal_yaw)) {
+        followingGoal = true;
+      }
+
+    } else {  // already following a goal
+      bool goal_reached = pid_controller_.is_goal_reached();
+
+      if (goal_reached) {
+        // move to next way point
+        auto* off = points.front();
+        points.pop();
+        delete off;
+        followingGoal = false;
+      }
+    }
+
+    pid_controller_.tick();
+
+    geometry_msgs::Twist vel_cmd;
+    if (pid_controller_.get_velocity(vel_cmd)) {
+      double vel_cmd_duration = 1.0 / config_.state_refresh_rate;
+      // move the drone
+      airsim_move_client_.moveByVelocityAsync(
+          vel_cmd.linear.x, vel_cmd.linear.y, vel_cmd.linear.z,
+          vel_cmd_duration, msr::airlib::DrivetrainType::MaxDegreeOfFreedom,
+          pid_controller_.getYawMode(), config_.vehicle_name);
+    }
   }
 }
 
@@ -597,6 +745,8 @@ void AirsimSimulator::simStateCallback(const ros::TimerEvent&) {
     msg.data = true;
     collision_pub_.publish(msg);
   }
+  // track trajectory
+  trackWayPoints();
 }
 
 bool AirsimSimulator::readTransformFromRos(const std::string& topic,
@@ -660,8 +810,13 @@ void AirsimSimulator::onShutdown() {
   for (const auto& timer : sensor_timers_) {
     timer->signalShutdown();
   }
+  sim_state_timer_ = ros::Timer();
   if (is_connected_) {
-    LOG(INFO) << "Shutting down: resetting airsim server.";
+    if (config_.reset_timer > 0.f) {
+    LOG(INFO) << "Shutting down: resetting airsim server in "<< config_.reset_timer<<" seconds.";
+    sleep(config_.reset_timer);
+    }
+    LOG(INFO) << "Shutting down: Resetting airsim server.";
     airsim_state_client_.reset();
     airsim_state_client_.enableApiControl(false);
   }

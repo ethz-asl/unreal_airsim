@@ -147,9 +147,10 @@ void DepthToPointcloud::findMatchingMessagesToPublish(
   // If a modality is not used we count it as found.
   bool found_color = true;
   bool found_segmentation = true;
-  
-  std::lock_guard<std::mutex> guard(queue_guard);
 
+  // Make this blocking since this process alters the queue elements in multiple
+  // threads.
+  std::lock_guard<std::mutex> guard(queue_mutex_);
   depth_it =
       std::find_if(depth_queue_.begin(), depth_queue_.end(),
                    [reference_msg](const sensor_msgs::ImagePtr& s) {
@@ -187,6 +188,13 @@ void DepthToPointcloud::findMatchingMessagesToPublish(
   if (found_color && found_segmentation) {
     publishPointcloud(*depth_it, use_color_ ? *color_it : nullptr,
                       use_segmentation_ ? *segmentation_it : nullptr);
+    if (std::find(depth_queue_.begin(), depth_queue_.end(), *depth_it) ==
+        depth_queue_.end()) {
+      // Double check the depth image is still there.
+      LOG(WARNING)
+          << "Tried to remove a depth image that is no longer in the queue.";
+      return;
+    }
     depth_queue_.erase(depth_it);
     if (use_color_) {
       color_queue_.erase(color_it);
@@ -213,14 +221,25 @@ void DepthToPointcloud::publishPointcloud(
   if (pub_.getNumSubscribers() == 0) {
     return;
   }
-  cv_bridge::CvImageConstPtr depth_img, color_img, segmentation_img;
-  depth_img = cv_bridge::toCvShare(depth_ptr, depth_ptr->encoding);
-  if (use_color_) {
-    color_img = cv_bridge::toCvShare(color_ptr, color_ptr->encoding);
+  if (depth_ptr->height == 0) {
+    LOG(WARNING) << "Received empty depth image, skipping frame.";
+    return;
   }
-  if (use_segmentation_) {
-    segmentation_img =
-        cv_bridge::toCvShare(segmentation_ptr, segmentation_ptr->encoding);
+
+  cv_bridge::CvImageConstPtr depth_img, color_img, segmentation_img;
+  try {
+    depth_img = cv_bridge::toCvShare(depth_ptr, depth_ptr->encoding);
+    if (use_color_) {
+      color_img = cv_bridge::toCvShare(color_ptr, color_ptr->encoding);
+    }
+    if (use_segmentation_) {
+      segmentation_img =
+          cv_bridge::toCvShare(segmentation_ptr, segmentation_ptr->encoding);
+    }
+  } catch (const cv_bridge::Exception& e) {
+    LOG(WARNING) << "Failed to read input images (" << e.what()
+                 << "), skipping frame.";
+    return;
   }
 
   // figure out number of points
