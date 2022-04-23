@@ -112,6 +112,7 @@ class AirsimSimulator {
    * set pose should do for most purposes.
    */
   void commandPoseCallback(const geometry_msgs::Pose& msg);
+  void commandPoseNoOdomCallback(const geometry_msgs::Pose& msg);
 
   // added from trajectory caller node
   void commandTrajectorycallback(
@@ -139,6 +140,7 @@ class AirsimSimulator {
   ros::Publisher sim_is_ready_pub_;
   ros::Publisher time_pub_;
   ros::Subscriber command_pose_sub_;
+  ros::Subscriber command_pose_no_odom_sub_;
   ros::Subscriber command_trajectory_sub_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   tf2_ros::StaticTransformBroadcaster static_tf_broadcaster_;

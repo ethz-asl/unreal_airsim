@@ -273,7 +273,7 @@ class ConfigParser(object):
             dict_out["Z"] = -list_in[2][3]
             R = [x[:3] for x in list_in[:3]]
             # Support python 2 and 3 scipy versions.
-            if sys.version_info >= (3, 0):
+            if sys.version_info < (3, 0):
                 R = Rotation.from_matrix(R)
             else:
                 R = Rotation.from_dcm(R)

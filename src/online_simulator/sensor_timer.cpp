@@ -44,6 +44,10 @@ void SensorTimer::timerCallback(const ros::TimerEvent&) {
   processImus();
 }
 
+void SensorTimer::getImages() {
+  processCameras();
+}
+
 void SensorTimer::addSensor(const AirsimSimulator& simulator,
                             int sensor_index) {
   AirsimSimulator::Config::Sensor* sensor =

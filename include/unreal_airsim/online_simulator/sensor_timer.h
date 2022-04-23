@@ -24,6 +24,7 @@ class SensorTimer {
   virtual ~SensorTimer() = default;
 
   void timerCallback(const ros::TimerEvent&);
+  void getImages();
 
   double getRate() const;
   bool isPrivate() const;
