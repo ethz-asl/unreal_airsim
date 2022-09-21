@@ -291,6 +291,10 @@ bool AirsimSimulator::setupROS() {
       nh_.subscribe(config_.vehicle_name + "/command/pose", 10,
                     &AirsimSimulator::commandPoseCallback, this);
 
+  command_pose_no_odom_sub_ =
+      nh_.subscribe(config_.vehicle_name + "/command/pose_no_odom", 1,
+                    &AirsimSimulator::commandPoseNoOdomCallback, this);
+
   command_trajectory_sub_ =
       nh_.subscribe(config_.vehicle_name + "/command/trajectory", 10,
                     &AirsimSimulator::commandTrajectorycallback, this);
@@ -468,7 +472,6 @@ void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose& msg) {
 
   // Use position + yaw as setpoint
   auto command_pos = T_gt_command.getPosition();
-
   auto command_ori = T_gt_command.getEigenQuaternion();
   std::cout << "Pose Orientation In ROS Frame: " << command_ori.x() << " "
             << command_ori.y() << " " << command_ori.z() << " "
@@ -506,6 +509,59 @@ void AirsimSimulator::commandPoseCallback(const geometry_msgs::Pose& msg) {
     airsim_move_client_.rotateToYawAsync(yaw, 3600, 5, config_.vehicle_name);
     std::cout << "No moving, only rotating" << std::endl;
   }
+}
+
+void AirsimSimulator::commandPoseNoOdomCallback(const geometry_msgs::Pose& msg) {
+  if (!is_running_) {
+    std::cout << "Not running." << std::endl;
+    return;
+  }
+
+  // // Input pose is in drifting odom frame, we therefore
+  // // first convert it back into Unreal GT frame
+  OdometryDriftSimulator::Transformation T_drift_command;
+  tf::poseMsgToKindr(msg, &T_drift_command);
+  const OdometryDriftSimulator::Transformation T_gt_command =
+      odometry_drift_simulator_.convertDriftedToGroundTruthPose(
+          T_drift_command);
+  OdometryDriftSimulator::Transformation::Position t_gt_current_position =
+      odometry_drift_simulator_.getGroundTruthPose().getPosition();
+
+  // Use position + yaw as setpoint
+  auto command_pos = msg.position;
+  auto command_ori = msg.orientation;
+  std::cout << "Pose Position In ROS Frame: " << command_pos.x << " "
+            << command_pos.y << " " << command_pos.z << std::endl;
+  std::cout << "Pose Orientation In ROS Frame: " << command_ori.x << " "
+            << command_ori.y << " " << command_ori.z << " "
+            << command_ori.w << std::endl;
+  frame_converter_.rosToAirsim(&command_pos);
+  frame_converter_.rosToAirsim(&command_ori);
+  std::cout << "Pose Position In Airsim Frame: " << command_pos.x << " "
+            << command_pos.y << " " << command_pos.z << std::endl;
+  std::cout << "Pose Orientation In Airsim Frame: " << command_ori.x << " "
+            << command_ori.y << " " << command_ori.z << " "
+            << command_ori.w << std::endl;
+            
+  // double yaw = tf2::getYaw(
+  //     tf2::Quaternion(command_ori.x, command_ori.y, command_ori.z,
+  //                     command_ori.w));  // Eigen's eulerAngles apparently
+  // // messes up some wrap arounds or direcions and gets the wrong yaws in some
+  // // cases
+
+  Eigen::Vector3f command_pos_eigen(command_pos.x, command_pos.y, command_pos.z);
+  Eigen::Quaternion command_ori_eigen(float(command_ori.w), 
+                                      float(command_ori.x), 
+                                      float(command_ori.y), 
+                                      float(command_ori.z));
+
+  airsim_move_client_.cancelLastTask();
+  airsim_move_client_.simSetVehiclePose(Pose(command_pos_eigen, command_ori_eigen),
+                                        true,
+                                        "airsim_drone");
+
+  // Trigger image collection
+  sensor_timers_.front()->getImages();
 }
 
 void AirsimSimulator::startupCallback(const ros::TimerEvent&) {
